@@ -10,22 +10,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-<!-- Favicon (browser tab icon) -->
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
-<!-- Open Graph (link preview on Discord, WhatsApp, Slack, iMessage, Facebook, LinkedIn) -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="REWIND — Anime Tape Deck">
 <meta property="og:description" content="Discover anime, track what you're watching, and find where to stream it — legally.">
-<meta property="og:image" content="https://YOUR-DOMAIN-HERE.vercel.app/icons/og-image.png">
-<meta property="og:url" content="https://YOUR-DOMAIN-HERE.vercel.app">
+<meta property="og:image" content="https://rewind-anime.vercel.app/icons/og-image.png">
+<meta property="og:url" content="https://rewind-anime.vercel.app">
 
-<!-- Twitter / X Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="REWIND — Anime Tape Deck">
 <meta name="twitter:description" content="Discover anime, track what you're watching, and find where to stream it — legally.">
-<meta name="twitter:image" content="https://YOUR-DOMAIN-HERE.vercel.app/icons/og-image.png">
+<meta name="twitter:image" content="https://rewind-anime.vercel.app/icons/og-image.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -33,19 +31,17 @@
 
 <div class="grain"></div>
 
-<!-- ============ TOP DECK ============ -->
 <header class="deck">
   <div class="deck-brand">
     <span class="deck-logo">REWIND</span>
     <span class="deck-tag">be kind, please rewind</span>
   </div>
-  <nav class="deck-tabs" id="deckTabs">
-    <button class="deck-tab active" data-view="home">ON&nbsp;AIR</button>
-    <button class="deck-tab" data-view="library">MY&nbsp;SHELF</button>
+  <nav class="deck-tabs">
+    <a class="deck-tab active" href="index.html">ON&nbsp;AIR</a>
+    <a class="deck-tab" href="shelf.html">MY&nbsp;SHELF</a>
   </nav>
 </header>
 
-<!-- ============ SLOT (search) ============ -->
 <div class="slot-wrap">
   <div class="slot">
     <div class="slot-led" id="slotLed"></div>
@@ -55,7 +51,9 @@
   <div class="slot-readout" id="slotReadout">STANDBY · browsing what's trending</div>
 </div>
 
-<!-- ============ GENRE SPOOLS ============ -->
+<!-- HERO SPOTLIGHT -->
+<section class="hero" id="hero"></section>
+
 <div class="spool-row" id="genreRow">
   <button class="spool active" data-genre="all">ALL</button>
   <button class="spool" data-genre="1">Action</button>
@@ -67,47 +65,43 @@
   <button class="spool" data-genre="36">Slice of Life</button>
 </div>
 
-<!-- ============ SHELF (grid) ============ -->
-<main class="shelf-container">
+<!-- SEARCH / GENRE RESULTS (hidden until used) -->
+<main class="shelf-container" id="searchResultsContainer" style="display:none;">
   <div class="shelf-header">
-    <h2 id="shelfTitle">Trending this season</h2>
-    <span class="shelf-count" id="shelfCount">loading…</span>
+    <h2 id="shelfTitle">Results</h2>
+    <span class="shelf-count" id="shelfCount"></span>
   </div>
   <div class="shelf" id="shelf"></div>
   <button class="load-more" id="loadMore" style="display:none;">▼ LOAD MORE TAPES</button>
 </main>
 
-<!-- ============ DETAIL MODAL (opened tape case) ============ -->
-<div class="case-modal" id="caseModal">
-  <div class="case" id="caseContent"></div>
-</div>
-
-<!-- ============ TAB BAR (mobile) ============ -->
-<div class="tabbar">
-  <button class="tab active" data-view="home">⏵ On Air</button>
-  <button class="tab" data-view="library">☰ Shelf</button>
-</div>
-
-<template id="toastTemplate">
-  <div class="toast"></div>
-</template>
-
-<!-- Install nudge — styled like a tape sliding into the deck -->
-<div class="install-prompt" id="installPrompt">
-  <div class="install-card">
-    <button class="install-close" id="installClose" aria-label="Dismiss">✕</button>
-    <div class="install-icon">📼</div>
-    <div class="install-copy">
-      <h3 id="installHeadline">Keep REWIND on your shelf</h3>
-      <p id="installBody">Install it once — opens instantly from your home screen, no browser bar, no reloading the search.</p>
+<!-- DEFAULT HOME SECTIONS -->
+<div id="homeSections">
+  <div class="section">
+    <div class="section-head">
+      <h2>Continue watching</h2>
+      <a href="shelf.html">View shelf →</a>
     </div>
-    <div class="install-actions">
-      <button class="btn btn-amber" id="installConfirm">▶ Install</button>
-      <button class="btn btn-ghost" id="installDismiss">Not now</button>
-    </div>
+    <div class="row-scroll" id="continueRow"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Latest episodes</h2></div>
+    <div class="row-scroll" id="airingRow"></div>
+  </div>
+
+  <div class="section" style="padding-bottom:70px;">
+    <div class="section-head"><h2>Trending now</h2></div>
+    <div class="grid-section" id="trendingGrid"></div>
   </div>
 </div>
 
-<script src="app.js"></script>
+<div class="tabbar">
+  <a class="tab active" href="index.html">⏵ On Air</a>
+  <a class="tab" href="shelf.html">☰ Shelf</a>
+</div>
+
+<script src="js/shared.js"></script>
+<script src="js/home.js"></script>
 </body>
 </html>
