@@ -413,8 +413,13 @@ input{font-family:inherit;}
    DETAIL PAGE
    ============================================================ */
 .detail-hero{position:relative;min-height:340px;display:flex;align-items:flex-end;overflow:hidden;background:var(--panel);}
-.detail-hero .bg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:brightness(0.4);}
-.detail-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,var(--ink) 5%,rgba(13,16,20,0.4) 60%,rgba(13,16,20,0.7));}
+.detail-hero .bg{position:absolute;inset:0;background-size:cover;background-position:center 8%;filter:brightness(0.4);z-index:0;}
+.detail-hero::before{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 70% 60% at 25% 100%, rgba(232,163,61,0.14), transparent 65%),
+             radial-gradient(ellipse 50% 50% at 80% 20%, rgba(79,195,192,0.10), transparent 60%);
+}
+.detail-hero::after{content:'';position:absolute;inset:0;z-index:2;background:linear-gradient(0deg,var(--ink) 5%,rgba(13,16,20,0.4) 60%,rgba(13,16,20,0.7));}
 .back-btn{
   position:absolute;top:18px;left:20px;z-index:5;display:inline-flex;align-items:center;gap:6px;
   background:rgba(23,27,33,0.7);border:1px solid var(--line);color:var(--paper);padding:8px 14px;
