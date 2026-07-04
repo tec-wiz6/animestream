@@ -1,5 +1,5 @@
 // ============================================================
-// REWIND — Complete Version with Video Player
+// REWIND — Complete Version with Mobile Video Player
 // ============================================================
 
 // API Configuration
@@ -10,6 +10,31 @@ const API_BASE = window.location.hostname === 'localhost'
 const ANILIST_URL = 'https://graphql.anilist.co';
 const JIKAN_URL = 'https://api.jikan.moe/v4';
 const WATCHLIST_KEY = 'rewind_watchlist_v1';
+
+// ============================================================
+// EMBED SOURCES - Mobile-friendly video players
+// ============================================================
+const EMBED_SOURCES = {
+    vidsrc: {
+        name: 'VidSrc',
+        url: (animeId, episode) => `https://vidsrc.to/embed/anime/${animeId}/${episode}`,
+        active: true
+    },
+    embedsu: {
+        name: 'Embed.su',
+        url: (animeId, episode) => `https://embed.su/embed/anime/${animeId}/${episode}`,
+        active: true
+    },
+    vidsrccc: {
+        name: 'VidSrc.cc',
+        url: (animeId, episode) => `https://vidsrc.cc/v2/embed/anime/${animeId}/${episode}`,
+        active: true
+    }
+};
+
+let currentSource = 'vidsrc';
+let currentAnimeId = null;
+let currentEpisode = null;
 
 // ---- state ----
 let state = {
@@ -283,6 +308,9 @@ function renderCase(anime, recs) {
   const saved = isSaved(anime.id);
   const watchLinks = buildWatchLinks(anime.title);
   const hasAnimeId = anime.id && !anime.id.startsWith('mal-');
+  
+  // Get MAL ID for embedding
+  const malId = anime.malId || anime.id.replace('al-', '');
 
   caseContent.innerHTML = `
     <button class="case-close" id="caseClose">✕</button>
@@ -302,6 +330,7 @@ function renderCase(anime, recs) {
         </div>
         <div class="case-synopsis">${escapeHtml(anime.description)}</div>
         <div class="case-actions">
+          <button class="btn btn-amber" id="playBtn">▶ Play Now</button>
           <button class="btn btn-amber btn-save ${saved ? 'saved' : ''}" id="caseSaveBtn">
             ${saved ? '★ On your shelf' : '☆ Add to shelf'}
           </button>
@@ -340,6 +369,15 @@ function renderCase(anime, recs) {
     $('#caseSaveBtn').classList.toggle('saved', nowSaved);
     $('#caseSaveBtn').textContent = nowSaved ? '★ On your shelf' : '☆ Add to shelf';
   });
+  
+  // Play button - uses mobile-friendly embed player
+  const playBtn = document.getElementById('playBtn');
+  if (playBtn) {
+    playBtn.addEventListener('click', () => {
+      const episodeNum = 1; // Start with episode 1
+      playEpisodeMobile(malId, episodeNum, anime.title);
+    });
+  }
   
   // Find Episodes button
   const findBtn = document.getElementById('findEpisodesBtn');
@@ -390,6 +428,7 @@ async function findEpisodes(animeId, animeTitle) {
 // ============================================================
 function showEpisodeList(episodes, animeTitle) {
   const caseContent = document.getElementById('caseContent');
+  const malId = episodes.length > 0 ? episodes[0].id.split('-')[0] : '1';
   
   let episodeHTML = `
     <div class="episode-list-container">
@@ -411,7 +450,7 @@ function showEpisodeList(episodes, animeTitle) {
           <span class="episode-title">${escapeHtml(epTitle)}</span>
         </div>
         <div class="episode-actions">
-          <button class="ep-btn play-btn" onclick="playEpisode('${ep.id}', '${escapeHtml(epTitle)}', '${escapeHtml(animeTitle)}')" title="Watch">
+          <button class="ep-btn play-btn" onclick="playEpisodeMobile('${malId}', ${epNum}, '${escapeHtml(animeTitle)}')" title="Watch">
             ▶
           </button>
           <button class="ep-btn download-btn" onclick="downloadEpisode('${ep.id}', '${escapeHtml(animeTitle)}', ${epNum})" title="Download">
@@ -434,64 +473,90 @@ function showEpisodeList(episodes, animeTitle) {
 }
 
 // ============================================================
-// PLAY EPISODE
+// MOBILE-FRIENDLY VIDEO PLAYER (Iframe Embeds)
 // ============================================================
-async function playEpisode(episodeId, episodeTitle, animeTitle) {
-  const playerModal = document.getElementById('playerModal');
-  const playerTitle = document.getElementById('playerTitle');
-  const playerWrapper = document.getElementById('playerWrapper');
-  
-  if (!playerModal) {
-    showToast('⚠️ Player not found');
-    return;
-  }
-  
-  playerTitle.textContent = `${animeTitle} - ${episodeTitle}`;
-  playerModal.classList.add('open');
-  
-  playerWrapper.innerHTML = `
-    <div class="player-loading" style="text-align:center;padding:40px;">
-      <div class="spinner"></div>
-      <p>Loading video...</p>
-    </div>
-  `;
-  
-  try {
-    const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
-    const data = await response.json();
+
+// ============================================================
+// PLAY EPISODE - MOBILE FRIENDLY
+// ============================================================
+function playEpisodeMobile(animeId, episodeNum, animeTitle) {
+    currentAnimeId = animeId;
+    currentEpisode = episodeNum;
     
-    if (data.success && data.selected && data.selected.url) {
-      playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
-      const video = document.getElementById('videoPlayer');
-      
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-        });
-        hls.loadSource(data.selected.url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          video.play().catch(() => {});
-        });
-        video._hls = hls;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = data.selected.url;
-        video.play().catch(() => {});
-      } else {
-        showPlayerError('HLS not supported in this browser.');
-      }
-    } else {
-      showPlayerError('No video sources found');
+    const playerModal = document.getElementById('playerModal');
+    const playerTitle = document.getElementById('playerTitle');
+    
+    if (!playerModal) {
+        showToast('⚠️ Player not found');
+        return;
     }
-  } catch (error) {
-    console.error('Player error:', error);
-    showPlayerError('Failed to load video');
-  }
+    
+    playerTitle.textContent = `${animeTitle} - EP ${episodeNum}`;
+    playerModal.classList.add('open');
+    
+    // Load the embed
+    loadEmbed(animeId, episodeNum, currentSource);
+    
+    // Update active source button
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.source === currentSource);
+    });
 }
 
 // ============================================================
-// DOWNLOAD EPISODE
+// LOAD EMBED
+// ============================================================
+function loadEmbed(animeId, episodeNum, sourceKey) {
+    const source = EMBED_SOURCES[sourceKey];
+    if (!source) return;
+    
+    const iframe = document.getElementById('videoIframe');
+    if (!iframe) return;
+    
+    const embedUrl = source.url(animeId, episodeNum);
+    iframe.src = embedUrl;
+    
+    console.log(`📺 Loading ${source.name}: ${embedUrl}`);
+}
+
+// ============================================================
+// SWITCH SOURCE (For mobile)
+// ============================================================
+function switchSource(sourceKey) {
+    if (!EMBED_SOURCES[sourceKey]) return;
+    
+    currentSource = sourceKey;
+    
+    // Update buttons
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.source === sourceKey);
+    });
+    
+    // Reload embed with new source
+    if (currentAnimeId && currentEpisode) {
+        loadEmbed(currentAnimeId, currentEpisode, sourceKey);
+        showToast(`Switched to ${EMBED_SOURCES[sourceKey].name}`);
+    }
+}
+
+// ============================================================
+// CLOSE PLAYER (Mobile)
+// ============================================================
+function closePlayerMobile() {
+    const playerModal = document.getElementById('playerModal');
+    const iframe = document.getElementById('videoIframe');
+    
+    if (iframe) {
+        iframe.src = 'about:blank'; // Stop video
+    }
+    
+    if (playerModal) {
+        playerModal.classList.remove('open');
+    }
+}
+
+// ============================================================
+// DOWNLOAD EPISODE - Fallback download method
 // ============================================================
 async function downloadEpisode(episodeId, animeTitle, episodeNum) {
   showToast(`⬇ Downloading ${animeTitle} - Episode ${episodeNum}...`);
@@ -517,11 +582,11 @@ async function downloadEpisode(episodeId, animeTitle, episodeNum) {
       
       showToast(`✅ Downloaded ${filename}`);
     } else {
-      showToast('❌ No video link found for download');
+      showToast('💡 Try right-clicking the video and selecting "Save Video As..."');
     }
   } catch (error) {
     console.error('Download error:', error);
-    showToast('❌ Download failed');
+    showToast('💡 Right-click the video and select "Save Video As..."');
   }
 }
 
@@ -546,45 +611,6 @@ function saveEpisode(episodeId, animeTitle, episodeNum) {
     showToast(`⭐ Added EP ${episodeNum} to shelf`);
   }
   saveWatchlist(saved);
-}
-
-// ============================================================
-// PLAYER FUNCTIONS
-// ============================================================
-function closePlayer() {
-  const playerModal = document.getElementById('playerModal');
-  const video = document.getElementById('videoPlayer');
-  
-  if (video) {
-    if (video._hls) {
-      video._hls.destroy();
-      delete video._hls;
-    }
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-  }
-  
-  if (playerModal) {
-    playerModal.classList.remove('open');
-  }
-  
-  const playerWrapper = document.getElementById('playerWrapper');
-  if (playerWrapper) {
-    playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
-  }
-}
-
-function showPlayerError(message) {
-  const playerWrapper = document.getElementById('playerWrapper');
-  if (playerWrapper) {
-    playerWrapper.innerHTML = `
-      <div class="player-error">
-        <div class="icon">⚠️</div>
-        <p>${message}</p>
-      </div>
-    `;
-  }
 }
 
 // ============================================================
@@ -717,15 +743,33 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (caseModal.classList.contains('open')) closeCase();
     const playerModal = document.getElementById('playerModal');
-    if (playerModal?.classList.contains('open')) closePlayer();
+    if (playerModal?.classList.contains('open')) closePlayerMobile();
   }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  const closeBtn = document.getElementById('closePlayer');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closePlayer);
-  }
+    // Source switcher buttons
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchSource(btn.dataset.source);
+        });
+    });
+    
+    // Close player
+    const closeBtn = document.getElementById('closePlayer');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closePlayerMobile);
+    }
+    
+    // Escape key for player
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const playerModal = document.getElementById('playerModal');
+            if (playerModal?.classList.contains('open')) {
+                closePlayerMobile();
+            }
+        }
+    });
 });
 
 function setView(view) {
@@ -855,5 +899,6 @@ function setView(view) {
 // INIT
 // ============================================================
 loadHome(1, false);
-console.log('📼 REWIND loaded — with video player and episode list!');
+console.log('📼 REWIND loaded — with mobile-friendly video player!');
 console.log('📡 API:', API_BASE);
+console.log('🎬 Embed sources:', Object.keys(EMBED_SOURCES).join(', '));
