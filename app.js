@@ -255,6 +255,7 @@ async function openCase(anime) {
   caseModal.classList.add('open');
   document.body.style.overflow = 'hidden';
   caseContent.innerHTML = caseSkeletonHTML();
+  window.dispatchEvent(new CustomEvent('rewind:engaged'));
 
   let full = anime;
   if (anime.malId) {
@@ -497,8 +498,8 @@ loadHome(1, false);
 (function initInstallPrompt() {
   const STORAGE_KEY = 'rewind_install_state_v1';
   const SNOOZE_DAYS = 7;
-  const SHOW_AFTER_MS = 25000;      // wait 25s of active browsing this session
-  const MIN_VISITS_BEFORE_SHOW = 2; // or wait until their 2nd visit, whichever comes first won't apply — both gates below
+  const SHOW_AFTER_MS = 12000;       // fallback: 12s of active browsing this session
+  const SHOW_AFTER_ENGAGEMENT_MS = 2500; // faster path: shortly after they open a tape's detail view
 
   const promptEl = document.getElementById('installPrompt');
   const closeBtn = document.getElementById('installClose');
@@ -545,6 +546,13 @@ loadHome(1, false);
     scheduleShow();
   });
 
+  // Real engagement — they opened a tape's detail view. Faster + more reliable
+  // than betting on a raw timer for someone who might leave in 10 seconds.
+  window.addEventListener('rewind:engaged', () => {
+    if (isSnoozed() || state.installed) return;
+    setTimeout(maybeShow, SHOW_AFTER_ENGAGEMENT_MS);
+  }, { once: true });
+
   window.addEventListener('appinstalled', () => {
     state.installed = true;
     saveState(state);
@@ -554,12 +562,8 @@ loadHome(1, false);
 
   function scheduleShow() {
     if (isSnoozed() || state.installed) return;
-    if (state.visits < MIN_VISITS_BEFORE_SHOW) {
-      // Still show eventually on a long first visit, just later.
-      setTimeout(maybeShow, SHOW_AFTER_MS * 1.6);
-    } else {
-      setTimeout(maybeShow, SHOW_AFTER_MS);
-    }
+    // Fallback timer — fires even if they never open a detail card.
+    setTimeout(maybeShow, SHOW_AFTER_MS);
   }
 
   function maybeShow() {
