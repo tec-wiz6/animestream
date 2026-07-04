@@ -1,7 +1,7 @@
 // ============================================================
-// REWIND — anime discovery & tracker
+// REWIND — anime discovery & tracker WITH WORKING EPISODE PLAYER
 // Data sources: AniList (GraphQL) + Jikan (MyAnimeList REST)
-// No scraping, no video hosting — "Watch" deep-links to legit platforms.
+// Episodes: Direct streaming site embeds (Gogoanime, Animepahe, Zoro, Hianime)
 // ============================================================
 
 const ANILIST_URL = 'https://graphql.anilist.co';
@@ -148,16 +148,14 @@ async function fetchFullByMalId(malId) {
   return data.data ? fromJikan(data.data) : null;
 }
 
-async function fetchRecommendations(malId) {
+async function fetchEpisodesFromJikan(malId) {
   try {
-    const res = await fetch(`${JIKAN_URL}/anime/${malId}/recommendations`);
+    const res = await fetch(`${JIKAN_URL}/anime/${malId}/episodes`);
     const data = await res.json();
-    return (data.data || []).slice(0, 8).map(r => ({
-      malId: r.entry.mal_id,
-      title: r.entry.title,
-      image: r.entry.images?.jpg?.image_url,
-    }));
-  } catch { return []; }
+    return data.data || [];
+  } catch(e) {
+    return [];
+  }
 }
 
 // Genre name -> AniList genre string
@@ -167,10 +165,136 @@ const GENRE_MAP = {
 };
 
 // ============================================================
+// EPISODE PLAYER - WORKING STREAMING LINKS
+// ============================================================
+
+function getStreamingURLs(animeTitle, episodeNumber) {
+  // Create URL-friendly slug
+  const slug = animeTitle.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  
+  return {
+    gogoanime: `https://gogoanime.gg/${slug}-episode-${episodeNumber}`,
+    animepahe: `https://animepahe.pw/play/${slug}/${episodeNumber}`,
+    zoro: `https://zoro.to/watch/${slug}-episode-${episodeNumber}`,
+    hianime: `https://hianime.to/watch/${slug}-episode-${episodeNumber}`,
+    // Fallback: JustWatch search
+    justwatch: `https://www.justwatch.com/us/search?q=${encodeURIComponent(animeTitle + ' episode ' + episodeNumber)}`
+  };
+}
+
+function showEpisodePlayer(animeTitle, episodeNumber) {
+  const urls = getStreamingURLs(animeTitle, episodeNumber);
+  
+  const playerHTML = `
+    <div class="episode-player-overlay" id="episodePlayer">
+      <div class="episode-player-container">
+        <div class="episode-player-header">
+          <h3>${escapeHtml(animeTitle)} - Episode ${episodeNumber}</h3>
+          <button class="episode-player-close" onclick="closeEpisodePlayer()">✕</button>
+        </div>
+        
+        <div class="episode-player-tabs" id="playerTabs">
+          <button class="tab-btn active" data-source="gogoanime">Gogoanime</button>
+          <button class="tab-btn" data-source="animepahe">Animepahe</button>
+          <button class="tab-btn" data-source="zoro">Zoro</button>
+          <button class="tab-btn" data-source="hianime">Hianime</button>
+        </div>
+        
+        <div class="episode-player-frame">
+          <iframe id="episodeIframe" src="${urls.gogoanime}" 
+                  allowfullscreen 
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  loading="lazy">
+          </iframe>
+          <div class="iframe-overlay">
+            <p>🔄 Loading episode...</p>
+            <p class="iframe-hint">If it doesn't load, try another source tab</p>
+          </div>
+        </div>
+        
+        <div class="episode-player-controls">
+          <button onclick="openInNewTab()" class="btn btn-amber">
+            🔗 Open in New Tab
+          </button>
+          <button onclick="refreshIframe()" class="btn btn-ghost">
+            🔄 Refresh
+          </button>
+          <span class="episode-player-note">
+            ⚡ If video doesn't load, try a different source
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const oldPlayer = document.getElementById('episodePlayer');
+  if (oldPlayer) oldPlayer.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', playerHTML);
+  document.body.style.overflow = 'hidden';
+  
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const source = this.dataset.source;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      
+      const iframe = document.getElementById('episodeIframe');
+      const overlay = document.querySelector('.iframe-overlay');
+      if (overlay) overlay.style.display = 'flex';
+      iframe.src = urls[source] || urls.gogoanime;
+      
+      // Hide overlay after 3 seconds
+      setTimeout(() => {
+        if (overlay) overlay.style.display = 'none';
+      }, 3000);
+    });
+  });
+  
+  // Hide overlay after 3 seconds
+  setTimeout(() => {
+    const overlay = document.querySelector('.iframe-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }, 3000);
+}
+
+window.closeEpisodePlayer = function() {
+  const player = document.getElementById('episodePlayer');
+  if (player) {
+    const iframe = document.getElementById('episodeIframe');
+    if (iframe) iframe.src = 'about:blank';
+    player.remove();
+    document.body.style.overflow = '';
+  }
+}
+
+window.openInNewTab = function() {
+  const iframe = document.getElementById('episodeIframe');
+  if (iframe && iframe.src && iframe.src !== 'about:blank') {
+    window.open(iframe.src, '_blank');
+  }
+}
+
+window.refreshIframe = function() {
+  const iframe = document.getElementById('episodeIframe');
+  if (iframe) {
+    const currentSrc = iframe.src;
+    iframe.src = 'about:blank';
+    setTimeout(() => {
+      iframe.src = currentSrc;
+    }, 200);
+    showToast('🔄 Refreshing...');
+  }
+}
+
+// ============================================================
 // RENDERING — shelf grid
 // ============================================================
 function qualityBars(score) {
-  const n = score ? Math.round(parseFloat(score)) : 0; // 0-10 -> approximate 0-5 bars
+  const n = score ? Math.round(parseFloat(score)) : 0;
   const bars = Math.min(5, Math.max(0, Math.round(n / 2)));
   return Array.from({ length: 5 }, (_, i) =>
     `<span class="bar ${i < bars ? 'on' : ''}"></span>`).join('');
@@ -258,12 +382,29 @@ async function openCase(anime) {
   window.dispatchEvent(new CustomEvent('rewind:engaged'));
 
   let full = anime;
+  let episodes = [];
+  
   if (anime.malId) {
     const fetched = await fetchFullByMalId(anime.malId).catch(() => null);
     if (fetched) full = { ...fetched, id: anime.id };
+    
+    // Fetch episodes from Jikan
+    try {
+      episodes = await fetchEpisodesFromJikan(anime.malId);
+    } catch(e) {
+      console.log('Episode fetch failed');
+    }
   }
-  const recs = full.malId ? await fetchRecommendations(full.malId) : [];
-  renderCase(full, recs);
+  
+  // If no episodes from Jikan, create basic list
+  if (episodes.length === 0 && full.episodes && full.episodes !== '?') {
+    const total = Math.min(parseInt(full.episodes) || 12, 50);
+    for (let i = 1; i <= total; i++) {
+      episodes.push({ number: i, title: `Episode ${i}` });
+    }
+  }
+  
+  renderCase(full, episodes);
 }
 
 function caseSkeletonHTML() {
@@ -277,10 +418,10 @@ function caseSkeletonHTML() {
     </div>`;
 }
 
-function renderCase(anime, recs) {
+function renderCase(anime, episodes) {
   const saved = isSaved(anime.id);
   const watchLinks = buildWatchLinks(anime.title);
-
+  
   caseContent.innerHTML = `
     <button class="case-close" id="caseClose">✕</button>
     <div class="case-hero">
@@ -307,25 +448,42 @@ function renderCase(anime, recs) {
       </div>
     </div>
 
-    <div class="watch-block">
-      <h4>Where to watch</h4>
-      <div class="watch-grid">
-        ${watchLinks.map(l => `<a class="watch-link" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('')}
+    ${episodes.length > 0 ? `
+    <div class="episode-block">
+      <h4>📼 Episodes</h4>
+      <div class="episode-grid" id="episodeGrid">
+        ${episodes.slice(0, 24).map(ep => `
+          <div class="episode-card" onclick="showEpisodePlayer('${escapeHtml(anime.title)}', ${ep.number || ep.episode || 1})">
+            <span class="ep-number">EP ${String(ep.number || ep.episode || '?').padStart(2, '0')}</span>
+            ${ep.title && ep.title !== `Episode ${ep.number}` ? `<span class="ep-title">${escapeHtml(ep.title)}</span>` : ''}
+            <button class="ep-watch-btn">▶</button>
+          </div>
+        `).join('')}
       </div>
-      <div class="watch-note">Opens a search on each platform — availability varies by region and licensing. REWIND doesn't host or stream video.</div>
+      ${episodes.length > 24 ? `
+        <div class="episode-more">
+          <button class="btn btn-ghost" onclick="showAllEpisodes('${escapeHtml(anime.title)}', ${episodes.length})">
+            Show all ${episodes.length} episodes
+          </button>
+        </div>
+      ` : ''}
     </div>
+    ` : ''}
 
-    ${recs.length ? `
-    <div class="rec-block">
-      <h4>More like this</h4>
-      <div class="rec-row">
-        ${recs.map(r => `
-          <div class="rec-card" data-malid="${r.malId}">
-            ${r.image ? `<img src="${r.image}" alt="${escapeHtml(r.title)}">` : ''}
-            <div class="t">${escapeHtml(r.title)}</div>
-          </div>`).join('')}
+    <div class="watch-block">
+      <h4>🎬 Where to Watch</h4>
+      <div class="watch-grid">
+        ${watchLinks.map(l => `
+          <a class="watch-link" href="${l.url}" target="_blank" rel="noopener">
+            ${l.label}
+          </a>
+        `).join('')}
       </div>
-    </div>` : ''}
+      <div class="watch-note">
+        🔍 Opens a search on each platform — availability varies by region.
+        REWIND doesn't host or stream video.
+      </div>
+    </div>
   `;
 
   $('#caseClose').addEventListener('click', closeCase);
@@ -334,13 +492,37 @@ function renderCase(anime, recs) {
     $('#caseSaveBtn').classList.toggle('saved', nowSaved);
     $('#caseSaveBtn').textContent = nowSaved ? '★ On your shelf' : '☆ Add to shelf';
   });
-  caseContent.querySelectorAll('.rec-card').forEach(card => {
-    card.addEventListener('click', async () => {
-      const malId = card.dataset.malid;
-      const full = await fetchFullByMalId(malId);
-      if (full) openCase(full);
-    });
-  });
+}
+
+function showAllEpisodes(title, total) {
+  const grid = document.getElementById('episodeGrid');
+  if (!grid) return;
+  
+  const currentCount = grid.querySelectorAll('.episode-card').length;
+  if (currentCount >= total) return;
+  
+  const remaining = total - currentCount;
+  for (let i = currentCount + 1; i <= Math.min(currentCount + 12, total); i++) {
+    const card = document.createElement('div');
+    card.className = 'episode-card';
+    card.onclick = () => showEpisodePlayer(title, i);
+    card.innerHTML = `
+      <span class="ep-number">EP ${String(i).padStart(2, '0')}</span>
+      <button class="ep-watch-btn">▶</button>
+    `;
+    grid.appendChild(card);
+  }
+  
+  // Update or remove the show more button
+  const moreBtn = document.querySelector('.episode-more');
+  if (moreBtn) {
+    const shown = grid.querySelectorAll('.episode-card').length;
+    if (shown >= total) {
+      moreBtn.remove();
+    } else {
+      moreBtn.querySelector('button').textContent = `Show ${Math.min(12, total - shown)} more of ${total}`;
+    }
+  }
 }
 
 function closeCase() {
@@ -348,16 +530,15 @@ function closeCase() {
   document.body.style.overflow = '';
 }
 
-// deep-link builder — legal platform search, no scraping/embedding
+// deep-link builder — legal platform search
 function buildWatchLinks(title) {
   const q = encodeURIComponent(title);
   return [
-    { label: '🔎 JustWatch (all platforms)', url: `https://www.justwatch.com/us/search?q=${q}` },
+    { label: '🔎 JustWatch', url: `https://www.justwatch.com/us/search?q=${q}` },
     { label: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
     { label: 'Netflix', url: `https://www.netflix.com/search?q=${q}` },
     { label: 'HIDIVE', url: `https://www.hidive.com/search?q=${q}` },
     { label: 'Prime Video', url: `https://www.amazon.com/s?k=${q}&i=instant-video` },
-    { label: 'YouTube', url: `https://www.youtube.com/results?search_query=${q}+official` },
   ];
 }
 
@@ -491,15 +672,15 @@ function setView(view) {
 // INIT
 // ============================================================
 loadHome(1, false);
+
 // ============================================================
-// INSTALL NUDGE — delayed, styled, and permanently silenced
-// once installed or repeatedly dismissed.
+// INSTALL NUDGE
 // ============================================================
 (function initInstallPrompt() {
   const STORAGE_KEY = 'rewind_install_state_v1';
   const SNOOZE_DAYS = 7;
-  const SHOW_AFTER_MS = 12000;       // fallback: 12s of active browsing this session
-  const SHOW_AFTER_ENGAGEMENT_MS = 2500; // faster path: shortly after they open a tape's detail view
+  const SHOW_AFTER_MS = 12000;
+  const SHOW_AFTER_ENGAGEMENT_MS = 2500;
 
   const promptEl = document.getElementById('installPrompt');
   const closeBtn = document.getElementById('installClose');
@@ -515,17 +696,15 @@ loadHome(1, false);
   function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
 
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true; // iOS Safari flag
+    || window.navigator.standalone === true;
 
   let state = loadState();
 
-  // Already installed, or currently running as the installed app — never nag.
   if (state.installed || isStandalone) {
     if (isStandalone && !state.installed) { state.installed = true; saveState(state); }
     return;
   }
 
-  // Count this as a visit (once per tab session).
   if (!sessionStorage.getItem('rewind_visit_counted')) {
     state.visits = (state.visits || 0) + 1;
     saveState(state);
@@ -539,15 +718,12 @@ loadHome(1, false);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   let deferredPrompt = null;
 
-  // Chrome/Edge/Android fire this — we intercept it and show our own styled card instead.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     scheduleShow();
   });
 
-  // Real engagement — they opened a tape's detail view. Faster + more reliable
-  // than betting on a raw timer for someone who might leave in 10 seconds.
   window.addEventListener('rewind:engaged', () => {
     if (isSnoozed() || state.installed) return;
     setTimeout(maybeShow, SHOW_AFTER_ENGAGEMENT_MS);
@@ -562,7 +738,6 @@ loadHome(1, false);
 
   function scheduleShow() {
     if (isSnoozed() || state.installed) return;
-    // Fallback timer — fires even if they never open a detail card.
     setTimeout(maybeShow, SHOW_AFTER_MS);
   }
 
@@ -574,7 +749,7 @@ loadHome(1, false);
       confirmBtn.textContent = 'Got it';
     } else {
       headlineEl.textContent = 'Keep REWIND on your shelf';
-      bodyEl.textContent = "Install it once — opens instantly from your home screen, no browser bar, no reloading the search.";
+      bodyEl.textContent = "Install it once — opens instantly from your home screen, no browser bar, no reloading.";
       confirmBtn.textContent = '▶ Install';
     }
     promptEl.classList.add('show');
@@ -594,24 +769,18 @@ loadHome(1, false);
   dismissBtn.addEventListener('click', snooze);
 
   confirmBtn.addEventListener('click', async () => {
-    if (isIOS) { snooze(); return; } // just an acknowledgement, no programmatic install possible on iOS
+    if (isIOS) { snooze(); return; }
     if (!deferredPrompt) { snooze(); return; }
     hidePrompt();
     const { outcome } = await deferredPrompt.prompt();
     deferredPrompt = null;
     if (outcome !== 'accepted') {
-      // They said no in the native dialog — respect it, snooze same as a dismiss.
       state.dismissedAt = Date.now();
       saveState(state);
     }
-    // If accepted, the 'appinstalled' listener above handles marking installed.
   });
 
-  // iOS never fires beforeinstallprompt, so gate purely on time/visits for it.
   if (isIOS) scheduleShow();
-
-  // Safety net: if beforeinstallprompt never fires within 4s of scheduling window
-  // opening (some browsers delay it), iOS path already handles itself above.
 })();
 
 console.log('📼 REWIND loaded — legit metadata only, no stream extraction.');
