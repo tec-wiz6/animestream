@@ -299,6 +299,37 @@ input{font-family:inherit;}
 @media(min-width:640px){.toast{bottom:30px;}}
 
 /* ============================================================
+   INSTALL PROMPT — tape sliding into the deck
+   ============================================================ */
+.install-prompt{
+  position:fixed;left:16px;right:16px;bottom:-260px;z-index:900;
+  display:flex;justify-content:center;transition:bottom .45s cubic-bezier(.2,.8,.2,1);
+  pointer-events:none;
+}
+.install-prompt.show{bottom:16px;pointer-events:auto;}
+@media(max-width:640px){.install-prompt.show{bottom:78px;}}
+.install-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  max-width:420px;width:100%;padding:18px;position:relative;
+  box-shadow:0 20px 50px rgba(0,0,0,0.5);
+  display:flex;flex-direction:column;gap:12px;
+}
+.install-card::before{
+  content:'';position:absolute;top:0;left:16px;right:16px;height:3px;
+  background:var(--cyan);border-radius:0 0 3px 3px;
+}
+.install-close{
+  position:absolute;top:10px;right:10px;background:none;border:none;color:var(--paper-dim);
+  font-size:14px;padding:4px;
+}
+.install-close:hover{color:var(--paper);}
+.install-icon{font-size:26px;}
+.install-copy h3{font-family:var(--display);font-weight:400;font-size:17px;margin:0 0 4px;letter-spacing:0.2px;}
+.install-copy p{font-size:12.5px;color:var(--paper-dim);margin:0;line-height:1.5;}
+.install-actions{display:flex;gap:10px;}
+.install-actions .btn{flex:1;justify-content:center;}
+
+/* ============================================================
    TAB BAR (mobile)
    ============================================================ */
 .tabbar{
