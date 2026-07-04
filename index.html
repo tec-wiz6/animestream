@@ -81,7 +81,16 @@
 <div class="case-modal" id="caseModal">
   <div class="case" id="caseContent"></div>
 </div>
-
+<!-- ============ PLAYER OVERLAY ============ -->
+<div class="player-modal" id="playerModal">
+    <div class="player-header">
+        <button class="player-close" id="closePlayer">✕</button>
+        <span class="player-title" id="playerTitle">Now Playing</span>
+    </div>
+    <div class="player-wrapper" id="playerWrapper">
+        <video id="videoPlayer" controls playsinline></video>
+    </div>
+</div>
 <!-- ============ TAB BAR (mobile) ============ -->
 <div class="tabbar">
   <button class="tab active" data-view="home">⏵ On Air</button>
