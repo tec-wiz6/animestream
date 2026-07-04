@@ -113,9 +113,13 @@ async function fetchSearch(q, page = 1) {
 }
 
 async function fetchFullByMalId(malId) {
-  const res = await fetch(`${JIKAN_URL}/anime/${malId}/full`);
-  const data = await res.json();
-  return data.data ? fromJikan(data.data) : null;
+  try {
+    const res = await fetch(`${JIKAN_URL}/anime/${malId}/full`);
+    const data = await res.json();
+    return data.data ? fromJikan(data.data) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchRecommendations(malId) {
@@ -147,13 +151,17 @@ async function resolveAnimeById(id) {
       bannerImage format episodes averageScore startDate { year } status genres
       studios(isMain: true) { nodes { name } } nextAiringEpisode { episode }
     } }`;
-    const res = await fetch(ANILIST_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
-    const data = await res.json();
-    return data?.data?.Media ? fromAniList(data.data.Media) : null;
+    try {
+      const res = await fetch(ANILIST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
+      return data?.data?.Media ? fromAniList(data.data.Media) : null;
+    } catch {
+      return null;
+    }
   }
   return saved || null;
 }
