@@ -81,14 +81,31 @@
 <div class="case-modal" id="caseModal">
   <div class="case" id="caseContent"></div>
 </div>
-<!-- ============ PLAYER OVERLAY ============ -->
+<!-- ============ PLAYER OVERLAY (UPDATED FOR MOBILE) ============ -->
 <div class="player-modal" id="playerModal">
     <div class="player-header">
         <button class="player-close" id="closePlayer">✕</button>
         <span class="player-title" id="playerTitle">Now Playing</span>
     </div>
     <div class="player-wrapper" id="playerWrapper">
-        <video id="videoPlayer" controls playsinline></video>
+        <!-- The iframe will be injected here by JavaScript -->
+        <div id="tape-deck-screen">
+            <div class="video-wrapper">
+                <iframe id="videoIframe" 
+                        allowfullscreen="true" 
+                        webkitallowfullscreen="true" 
+                        mozallowfullscreen="true" 
+                        scrolling="no" 
+                        sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation">
+                </iframe>
+            </div>
+        </div>
+    </div>
+    <!-- Source switcher for mobile -->
+    <div class="player-controls" id="playerControls">
+        <button class="source-btn" data-source="vidsrc">Source 1</button>
+        <button class="source-btn" data-source="embedsu">Source 2</button>
+        <button class="source-btn" data-source="vidsrccc">Source 3</button>
     </div>
 </div>
 <!-- ============ TAB BAR (mobile) ============ -->
