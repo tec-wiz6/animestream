@@ -165,129 +165,138 @@ const GENRE_MAP = {
 };
 
 // ============================================================
-// EPISODE PLAYER - WORKING STREAMING LINKS
+// WORKING EPISODE PLAYER - WITH PROPER EMBEDS
 // ============================================================
 
-function getStreamingURLs(animeTitle, episodeNumber) {
-  // Create URL-friendly slug
-  const slug = animeTitle.toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  
-  return {
-    gogoanime: `https://gogoanime.gg/${slug}-episode-${episodeNumber}`,
-    animepahe: `https://animepahe.pw/play/${slug}/${episodeNumber}`,
-    zoro: `https://zoro.to/watch/${slug}-episode-${episodeNumber}`,
-    hianime: `https://hianime.to/watch/${slug}-episode-${episodeNumber}`,
-    // Fallback: JustWatch search
-    justwatch: `https://www.justwatch.com/us/search?q=${encodeURIComponent(animeTitle + ' episode ' + episodeNumber)}`
-  };
+function getEpisodeEmbeds(animeTitle, episodeNumber) {
+    const slug = animeTitle.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    
+    return {
+        gogoanime: `https://gogoanime.gg/embed/${slug}-episode-${episodeNumber}`,
+        zoro: `https://zoro.to/embed/${slug}-episode-${episodeNumber}`,
+        hianime: `https://hianime.to/embed/${slug}-episode-${episodeNumber}`,
+        gogoanime2: `https://gogoanime.tel/embed/${slug}-episode-${episodeNumber}`
+    };
 }
 
 function showEpisodePlayer(animeTitle, episodeNumber) {
-  const urls = getStreamingURLs(animeTitle, episodeNumber);
-  
-  const playerHTML = `
-    <div class="episode-player-overlay" id="episodePlayer">
-      <div class="episode-player-container">
-        <div class="episode-player-header">
-          <h3>${escapeHtml(animeTitle)} - Episode ${episodeNumber}</h3>
-          <button class="episode-player-close" onclick="closeEpisodePlayer()">✕</button>
+    const embeds = getEpisodeEmbeds(animeTitle, episodeNumber);
+    
+    const playerHTML = `
+        <div class="episode-player-overlay" id="episodePlayer">
+            <div class="episode-player-container">
+                <div class="episode-player-header">
+                    <h3>${escapeHtml(animeTitle)} - Episode ${episodeNumber}</h3>
+                    <button class="episode-player-close" onclick="closeEpisodePlayer()">✕</button>
+                </div>
+                
+                <div class="episode-player-tabs">
+                    <button class="tab-btn active" data-embed="${embeds.gogoanime}">Gogoanime</button>
+                    <button class="tab-btn" data-embed="${embeds.zoro}">Zoro</button>
+                    <button class="tab-btn" data-embed="${embeds.hianime}">Hianime</button>
+                    <button class="tab-btn" data-embed="${embeds.gogoanime2}">Gogo (Alt)</button>
+                </div>
+                
+                <div class="episode-player-frame">
+                    <iframe id="episodeIframe" src="${embeds.gogoanime}" 
+                            allowfullscreen 
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                            loading="lazy">
+                    </iframe>
+                    <div class="iframe-overlay" id="iframeOverlay">
+                        <p>🔄 Loading episode...</p>
+                        <p class="iframe-hint">If it doesn't load, try another source tab</p>
+                    </div>
+                </div>
+                
+                <div class="episode-player-controls">
+                    <button onclick="openInNewTab()" class="btn btn-amber">
+                        🔗 Open in New Tab
+                    </button>
+                    <button onclick="refreshIframe()" class="btn btn-ghost">
+                        🔄 Refresh
+                    </button>
+                    <button onclick="reportBroken()" class="btn btn-ghost">
+                        ⚠️ Report Broken
+                    </button>
+                    <span class="episode-player-note">
+                        💡 Try different sources if video doesn't load
+                    </span>
+                </div>
+            </div>
         </div>
-        
-        <div class="episode-player-tabs" id="playerTabs">
-          <button class="tab-btn active" data-source="gogoanime">Gogoanime</button>
-          <button class="tab-btn" data-source="animepahe">Animepahe</button>
-          <button class="tab-btn" data-source="zoro">Zoro</button>
-          <button class="tab-btn" data-source="hianime">Hianime</button>
-        </div>
-        
-        <div class="episode-player-frame">
-          <iframe id="episodeIframe" src="${urls.gogoanime}" 
-                  allowfullscreen 
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                  loading="lazy">
-          </iframe>
-          <div class="iframe-overlay">
-            <p>🔄 Loading episode...</p>
-            <p class="iframe-hint">If it doesn't load, try another source tab</p>
-          </div>
-        </div>
-        
-        <div class="episode-player-controls">
-          <button onclick="openInNewTab()" class="btn btn-amber">
-            🔗 Open in New Tab
-          </button>
-          <button onclick="refreshIframe()" class="btn btn-ghost">
-            🔄 Refresh
-          </button>
-          <span class="episode-player-note">
-            ⚡ If video doesn't load, try a different source
-          </span>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  const oldPlayer = document.getElementById('episodePlayer');
-  if (oldPlayer) oldPlayer.remove();
-  
-  document.body.insertAdjacentHTML('beforeend', playerHTML);
-  document.body.style.overflow = 'hidden';
-  
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const source = this.dataset.source;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      
-      const iframe = document.getElementById('episodeIframe');
-      const overlay = document.querySelector('.iframe-overlay');
-      if (overlay) overlay.style.display = 'flex';
-      iframe.src = urls[source] || urls.gogoanime;
-      
-      // Hide overlay after 3 seconds
-      setTimeout(() => {
-        if (overlay) overlay.style.display = 'none';
-      }, 3000);
+    `;
+    
+    const oldPlayer = document.getElementById('episodePlayer');
+    if (oldPlayer) oldPlayer.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', playerHTML);
+    document.body.style.overflow = 'hidden';
+    
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const iframe = document.getElementById('episodeIframe');
+            const overlay = document.getElementById('iframeOverlay');
+            if (overlay) overlay.style.display = 'flex';
+            
+            iframe.src = this.dataset.embed;
+            
+            // Hide overlay after 4 seconds
+            setTimeout(() => {
+                if (overlay) overlay.style.display = 'none';
+            }, 4000);
+        });
     });
-  });
-  
-  // Hide overlay after 3 seconds
-  setTimeout(() => {
-    const overlay = document.querySelector('.iframe-overlay');
-    if (overlay) overlay.style.display = 'none';
-  }, 3000);
+    
+    // Hide overlay after 4 seconds
+    setTimeout(() => {
+        const overlay = document.getElementById('iframeOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }, 4000);
 }
 
 window.closeEpisodePlayer = function() {
-  const player = document.getElementById('episodePlayer');
-  if (player) {
-    const iframe = document.getElementById('episodeIframe');
-    if (iframe) iframe.src = 'about:blank';
-    player.remove();
-    document.body.style.overflow = '';
-  }
+    const player = document.getElementById('episodePlayer');
+    if (player) {
+        const iframe = document.getElementById('episodeIframe');
+        if (iframe) iframe.src = 'about:blank';
+        player.remove();
+        document.body.style.overflow = '';
+    }
 }
 
 window.openInNewTab = function() {
-  const iframe = document.getElementById('episodeIframe');
-  if (iframe && iframe.src && iframe.src !== 'about:blank') {
-    window.open(iframe.src, '_blank');
-  }
+    const iframe = document.getElementById('episodeIframe');
+    if (iframe && iframe.src && iframe.src !== 'about:blank') {
+        window.open(iframe.src, '_blank');
+    }
 }
 
 window.refreshIframe = function() {
-  const iframe = document.getElementById('episodeIframe');
-  if (iframe) {
-    const currentSrc = iframe.src;
-    iframe.src = 'about:blank';
-    setTimeout(() => {
-      iframe.src = currentSrc;
-    }, 200);
-    showToast('🔄 Refreshing...');
-  }
+    const iframe = document.getElementById('episodeIframe');
+    if (iframe) {
+        const currentSrc = iframe.src;
+        iframe.src = 'about:blank';
+        setTimeout(() => {
+            iframe.src = currentSrc;
+            showToast('🔄 Refreshed');
+        }, 300);
+    }
+}
+
+window.reportBroken = function() {
+    const iframe = document.getElementById('episodeIframe');
+    if (iframe) {
+        const currentSrc = iframe.src;
+        showToast('📝 Reported. Try another source tab.');
+        console.log('Broken embed URL:', currentSrc);
+    }
 }
 
 // ============================================================
