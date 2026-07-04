@@ -1,11 +1,11 @@
 // ============================================================
-// REWIND — COMPLETE WORKING APP WITH BACKEND
+// REWIND — COMPLETE WORKING APP WITH HIANIME BACKEND
 // ============================================================
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const JIKAN_URL = 'https://api.jikan.moe/v4';
 const WATCHLIST_KEY = 'rewind_watchlist_v1';
-const API_BASE = '/api/animepahe';
+const HIANIME_API_BASE = '/api/hianime';
 
 // ---- state ----
 let state = {
@@ -14,8 +14,7 @@ let state = {
   query: '',
   page: 1,
   items: [],
-  loading: false,
-  verifiedSessions: JSON.parse(localStorage.getItem('rewind_sessions') || '{}')
+  loading: false
 };
 
 // ---- DOM ----
@@ -52,7 +51,13 @@ function toggleSave(anime) {
     delete list[anime.id];
     showToast(`Removed "${anime.title}" from your shelf`);
   } else {
-    list[anime.id] = { id: anime.id, title: anime.title, image: anime.image, type: anime.type, score: anime.score };
+    list[anime.id] = {
+      id: anime.id,
+      title: anime.title,
+      image: anime.image,
+      type: anime.type,
+      score: anime.score
+    };
     showToast(`Added "${anime.title}" to your shelf`);
   }
   saveWatchlist(list);
@@ -67,7 +72,10 @@ function showToast(msg) {
   el.textContent = msg;
   document.body.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3000);
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
 }
 
 // ============================================================
@@ -109,7 +117,7 @@ function fromJikan(a) {
 }
 
 // ============================================================
-// DATA FETCHING
+// DATA FETCHING (AniList + Jikan)
 // ============================================================
 async function fetchTrending(page = 1, genre = 'all') {
   const genreClause = genre !== 'all' ? `, genre: "${GENRE_MAP[genre]}"` : '';
@@ -164,354 +172,43 @@ const GENRE_MAP = {
 };
 
 // ============================================================
-// ANIMEPAHE - WITH 403 HANDLING
+// HIANIME — search, episodes, embed (frontend helpers)
 // ============================================================
-
-function saveVerifiedSession(animeId, sessionId) {
-  state.verifiedSessions[animeId] = sessionId;
-  localStorage.setItem('rewind_sessions', JSON.stringify(state.verifiedSessions));
-}
-
-function getVerifiedSession(animeId) {
-  return state.verifiedSessions[animeId] || null;
-}
-
-function getAlternativeTitles(title) {
-  const altMap = {
-    'That Time I Got Reincarnated as a Slime': 'Tensei Shitara Slime Datta Ken',
-    'Attack on Titan': 'Shingeki no Kyojin',
-    'One Punch Man': 'One Punch-Man',
-    'My Hero Academia': 'Boku no Hero Academia',
-    'Demon Slayer': 'Kimetsu no Yaiba',
-    'Fullmetal Alchemist': 'Hagane no Renkinjutsushi',
-    'Sword Art Online': 'SAO',
-    'Tokyo Ghoul': 'Tokyo Ghoul',
-    'Death Note': 'Death Note',
-    'Naruto': 'Naruto',
-    'One Piece': 'One Piece'
-  };
-
-  const results = [title];
-  for (const [key, value] of Object.entries(altMap)) {
-    if (title.toLowerCase().includes(key.toLowerCase())) results.push(value);
-    if (value.toLowerCase().includes(title.toLowerCase()) && !results.includes(key)) results.push(key);
-  }
-  return [...new Set(results)];
-}
-
-async function searchAnimepahe(query) {
+async function searchHiAnime(title) {
   try {
-    console.log(`🔍 Searching Animepahe for: "${query}"`);
-
-    const response = await fetch(`${API_BASE}?action=search&query=${encodeURIComponent(query)}`);
-
-    if (response.status === 403 || response.status === 500) {
-      console.log('⚠️ Backend blocked, trying direct...');
-      return await searchAnimepaheDirect(query);
-    }
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    return data.data || data || [];
+    const res = await fetch(`${HIANIME_API_BASE}?action=search&query=${encodeURIComponent(title)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.results || [];
   } catch (e) {
-    console.log('Search failed:', e);
-    return await searchAnimepaheDirect(query);
-  }
-}
-
-async function searchAnimepaheDirect(query) {
-  try {
-    console.log('🔄 Trying direct search from frontend...');
-    const response = await fetch(`https://animepahe.pw/search?q=${encodeURIComponent(query)}`);
-
-    if (!response.ok) {
-      console.log('Direct search failed, opening search page...');
-      window.open(`https://animepahe.pw/search?q=${encodeURIComponent(query)}`, '_blank');
-      return [];
-    }
-
-    const text = await response.text();
-
-    try {
-      const data = JSON.parse(text);
-      return data.data || data || [];
-    } catch {
-      window.open(`https://animepahe.pw/search?q=${encodeURIComponent(query)}`, '_blank');
-      return [];
-    }
-  } catch (e) {
-    console.log('Direct search error:', e);
-    window.open(`https://animepahe.pw/search?q=${encodeURIComponent(query)}`, '_blank');
+    console.log('HiAnime search failed:', e);
     return [];
   }
 }
 
-async function getAnimepaheEpisodes(animeId) {
+async function getHiAnimeEpisodes(hiId) {
   try {
-    const response = await fetch(`${API_BASE}?action=episodes&id=${animeId}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    return data.data || data || [];
+    const res = await fetch(`${HIANIME_API_BASE}?action=episodes&id=${encodeURIComponent(hiId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.episodes || [];
   } catch (e) {
-    console.log('Episode fetch failed:', e);
-
-    try {
-      const directRes = await fetch(`https://animepahe.pw/api?m=release&id=${animeId}`);
-      if (directRes.ok) {
-        const directText = await directRes.text();
-        try {
-          const directData = JSON.parse(directText);
-          return directData.data || directData || [];
-        } catch {
-          return [];
-        }
-      }
-    } catch (e2) {
-      console.log('Direct episode fetch also failed:', e2);
-    }
-
+    console.log('HiAnime episodes failed:', e);
     return [];
   }
 }
 
-async function getAnimepaheEmbed(animeSession, episodeSession) {
+async function getHiAnimeEmbed(episodeId) {
   try {
-    const response = await fetch(`${API_BASE}?action=embed&id=${animeSession}&episode=${episodeSession}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    return data;
+    const res = await fetch(`${HIANIME_API_BASE}?action=embed&episodeId=${encodeURIComponent(episodeId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.embedUrl || null;
   } catch (e) {
-    console.log('Embed fetch failed:', e);
-    return {
-      success: true,
-      embedUrl: `https://animepahe.pw/embed/${animeSession}/${episodeSession}`,
-      playUrl: `https://animepahe.pw/play/${animeSession}/${episodeSession}`
-    };
+    console.log('HiAnime embed failed:', e);
+    return null;
   }
 }
-
-async function playEpisode(animeTitle, episodeNumber) {
-  showToast(`🔍 Finding ${animeTitle} episode ${episodeNumber}...`);
-  console.log(`🎬 playEpisode: "${animeTitle}", EP ${episodeNumber}`);
-
-  try {
-    let searchResults = await searchAnimepahe(animeTitle);
-
-    if (!searchResults || searchResults.length === 0) {
-      const altTitles = getAlternativeTitles(animeTitle);
-      for (const alt of altTitles) {
-        if (alt !== animeTitle) {
-          console.log(`🔄 Trying alternative: "${alt}"`);
-          searchResults = await searchAnimepahe(alt);
-          if (searchResults && searchResults.length > 0) break;
-        }
-      }
-    }
-
-    if (!searchResults || searchResults.length === 0) {
-      const searchUrl = `https://animepahe.pw/search?q=${encodeURIComponent(animeTitle)}`;
-      showToast('❌ Opening Animepahe search...');
-      window.open(searchUrl, '_blank');
-      return;
-    }
-
-    const anime = searchResults[0];
-    console.log('✅ Found:', anime.title);
-    console.log('📝 ID:', anime.id);
-    console.log('🔑 Session:', anime.session);
-
-    let episodes = await getAnimepaheEpisodes(anime.id);
-
-    if (!episodes || episodes.length === 0) {
-      const animeUrl = `https://animepahe.pw/anime/${anime.id}`;
-      showToast('📼 Opening Animepahe...');
-      window.open(animeUrl, '_blank');
-      return;
-    }
-
-    console.log(`✅ Found ${episodes.length} episodes`);
-
-    let episode = episodes.find(ep => {
-      const epNum = parseInt(ep.episode) || parseInt(ep.number) || parseInt(ep.ep) || 0;
-      return epNum === episodeNumber;
-    });
-
-    if (!episode) {
-      episode = episodes[0];
-      const firstEp = parseInt(episode.episode) || parseInt(episode.number) || parseInt(episode.ep) || 1;
-      showToast(`⚠️ EP ${episodeNumber} not found. Showing EP ${firstEp}.`);
-    }
-
-    const actualEpNum = parseInt(episode.episode) || parseInt(episode.number) || parseInt(episode.ep) || 1;
-    const sessionId = episode.session || episode.id || episode.episodeId;
-
-    console.log(`🎬 Playing EP ${actualEpNum}, Session: ${sessionId}`);
-
-    const isVerified = getVerifiedSession(anime.id) === anime.session;
-
-    if (!isVerified) {
-      const playUrl = `https://animepahe.pw/play/${anime.session}/${sessionId}`;
-      console.log('🔓 Opening for verification:', playUrl);
-      window.open(playUrl, '_blank');
-      saveVerifiedSession(anime.id, anime.session);
-      showVerificationScreen(anime, episode, anime.title, actualEpNum);
-      return;
-    }
-
-    const embedData = await getAnimepaheEmbed(anime.session, sessionId);
-    const embedUrl = embedData?.embedUrl || `https://animepahe.pw/embed/${anime.session}/${sessionId}`;
-    showCompactPlayer(embedUrl, anime.title, actualEpNum, episodes.length);
-  } catch (e) {
-    console.log('❌ Error:', e);
-    showToast('❌ Failed to load episode. Try again.');
-  }
-}
-
-// ============================================================
-// VERIFICATION SCREEN
-// ============================================================
-
-function showVerificationScreen(anime, episode, animeTitle, episodeNumber) {
-  const sessionId = episode.session || episode.id || episode.episodeId;
-  const playUrl = `https://animepahe.pw/play/${anime.session}/${sessionId}`;
-
-  const playerHTML = `
-    <div class="episode-player-overlay" id="episodePlayer">
-      <div class="episode-player-container" style="max-width:480px;">
-        <div class="episode-player-header">
-          <h3 style="font-size:14px;">${escapeHtml(animeTitle)} - EP ${episodeNumber}</h3>
-          <button class="episode-player-close" onclick="closeEpisodePlayer()">✕</button>
-        </div>
-
-        <div style="padding:30px 20px;text-align:center;">
-          <div style="font-size:48px;margin-bottom:12px;">🔓</div>
-          <h3 style="font-family:var(--display);font-weight:400;margin:0 0 8px;">Verify to Play</h3>
-          <p style="color:var(--paper-dim);font-size:13px;margin:0 0 16px;">
-            Animepahe needs verification. A new tab opened.
-          </p>
-          <div style="background:var(--panel-2);border-radius:8px;padding:12px 16px;margin:0 0 16px;text-align:left;font-size:12px;color:var(--paper);line-height:1.8;">
-            <div>1️⃣ Wait for Animepahe to load</div>
-            <div>2️⃣ Complete any Cloudflare check</div>
-            <div>3️⃣ Come back and click below</div>
-          </div>
-          <button class="btn btn-amber" onclick="checkVerification('${anime.id}', '${anime.session}', '${escapeHtml(animeTitle)}', ${episodeNumber})" style="width:100%;padding:12px;">
-            ✅ I've Verified - Play
-          </button>
-          <button class="btn btn-ghost" onclick="window.open('${playUrl}', '_blank')" style="width:100%;margin-top:8px;padding:10px;">
-            🔗 Open Animepahe Again
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const oldPlayer = document.getElementById('episodePlayer');
-  if (oldPlayer) oldPlayer.remove();
-
-  document.body.insertAdjacentHTML('beforeend', playerHTML);
-  document.body.style.overflow = 'hidden';
-}
-
-window.checkVerification = async function(animeId, sessionId, animeTitle, episodeNumber) {
-  showToast('✅ Verified! Loading episode...');
-  saveVerifiedSession(animeId, sessionId);
-  closeEpisodePlayer();
-  await playEpisode(animeTitle, episodeNumber);
-};
-
-// ============================================================
-// COMPACT VIDEO PLAYER
-// ============================================================
-
-function showCompactPlayer(embedUrl, animeTitle, episodeNumber, totalEpisodes) {
-  const playerHTML = `
-    <div class="episode-player-overlay" id="episodePlayer">
-      <div class="episode-player-container" style="max-width:820px;">
-        <div class="episode-player-header">
-          <h3 style="font-size:14px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">
-            ${escapeHtml(animeTitle)} - EP ${String(episodeNumber).padStart(2, '0')}
-          </h3>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button onclick="openInNewTab()" class="btn btn-ghost" style="padding:4px 10px;font-size:10px;" title="Open in new tab">🔗</button>
-            <button class="episode-player-close" onclick="closeEpisodePlayer()" style="font-size:18px;">✕</button>
-          </div>
-        </div>
-
-        <div style="position:relative;background:#000;aspect-ratio:16/9;width:100%;">
-          <iframe id="episodeIframe" src="${embedUrl}"
-                  allowfullscreen
-                  allow="autoplay; encrypted-media"
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                  style="width:100%;height:100%;border:none;">
-          </iframe>
-          <div id="iframeOverlay" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);color:var(--paper);font-size:14px;pointer-events:none;transition:opacity 0.5s;">
-            <p style="font-size:28px;margin:0 0 8px;">🎬</p>
-            <p>Loading episode...</p>
-            <p style="font-size:12px;color:var(--paper-dim);margin-top:4px;">If stuck, click 🔗 to open in new tab</p>
-          </div>
-        </div>
-
-        <div style="display:flex;gap:8px;padding:8px 14px;background:var(--panel-2);border-top:1px solid var(--line);flex-wrap:wrap;align-items:center;">
-          <button onclick="document.getElementById('episodeIframe').requestFullscreen()" class="btn btn-ghost" style="padding:4px 12px;font-size:11px;">
-            ⛶ Fullscreen
-          </button>
-          <button onclick="refreshIframe()" class="btn btn-ghost" style="padding:4px 12px;font-size:11px;">
-            🔄 Refresh
-          </button>
-          <span style="font-size:10px;color:var(--paper-dim);margin-left:auto;">
-            ${totalEpisodes || '?'} episodes total
-          </span>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const oldPlayer = document.getElementById('episodePlayer');
-  if (oldPlayer) oldPlayer.remove();
-
-  document.body.insertAdjacentHTML('beforeend', playerHTML);
-  document.body.style.overflow = 'hidden';
-
-  setTimeout(() => {
-    const overlay = document.getElementById('iframeOverlay');
-    if (overlay) {
-      overlay.style.opacity = '0';
-      setTimeout(() => {
-        if (overlay) overlay.style.display = 'none';
-      }, 500);
-    }
-  }, 3000);
-}
-
-window.openInNewTab = function() {
-  const iframe = document.getElementById('episodeIframe');
-  if (iframe && iframe.src && iframe.src !== 'about:blank') {
-    window.open(iframe.src, '_blank');
-  }
-};
-
-window.refreshIframe = function() {
-  const iframe = document.getElementById('episodeIframe');
-  if (iframe) {
-    const currentSrc = iframe.src;
-    iframe.src = 'about:blank';
-    setTimeout(() => {
-      iframe.src = currentSrc;
-      showToast('🔄 Refreshed');
-    }, 300);
-  }
-};
-
-window.closeEpisodePlayer = function() {
-  const player = document.getElementById('episodePlayer');
-  if (player) {
-    const iframe = document.getElementById('episodeIframe');
-    if (iframe) iframe.src = 'about:blank';
-    player.remove();
-    document.body.style.overflow = '';
-  }
-};
 
 // ============================================================
 // RENDERING — SHELF GRID
@@ -577,7 +274,6 @@ function renderSkeleton(count = 12) {
 function attachCardEvents() {
   shelf.querySelectorAll('.tape').forEach(card => {
     const id = card.dataset.id;
-
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-save]')) return;
       const anime = state.items.find(a => a.id === id) || getWatchlist()[id];
@@ -602,7 +298,7 @@ function attachCardEvents() {
 }
 
 // ============================================================
-// DETAIL CASE WITH EPISODE CARDS
+// DETAIL CASE WITH EPISODE CARDS (HiAnime-powered)
 // ============================================================
 async function openCase(anime) {
   caseModal.classList.add('open');
@@ -613,6 +309,7 @@ async function openCase(anime) {
   let full = anime;
   let episodes = [];
 
+  // Jikan full info + episodes
   if (anime.malId) {
     const fetched = await fetchFullByMalId(anime.malId).catch(() => null);
     if (fetched) full = { ...fetched, id: anime.id };
@@ -622,6 +319,17 @@ async function openCase(anime) {
     } catch (e) {}
   }
 
+  // If no episodes from Jikan, try HiAnime
+  if (episodes.length === 0) {
+    const hiResults = await searchHiAnime(anime.title);
+    if (hiResults.length > 0) {
+      const hiAnime = hiResults[0];
+      full.hiId = hiAnime.slugOrId || hiAnime.dataId || hiAnime.id;
+      episodes = await getHiAnimeEpisodes(full.hiId);
+    }
+  }
+
+  // If still no episodes, synthesize from total count
   if (episodes.length === 0 && full.episodes && full.episodes !== '?') {
     const total = Math.min(parseInt(full.episodes) || 12, 50);
     for (let i = 1; i <= total; i++) {
@@ -682,9 +390,7 @@ function renderCase(anime, episodes) {
     ${episodes.length > 0 ? `
       <div class="episode-block">
         <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 12px;">
-          <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--paper-dim);text-transform:uppercase;margin:0;">
-            📼 Episodes
-          </h4>
+          <h4>📼 Episodes</h4>
           <span style="font-family:var(--mono);font-size:10px;color:var(--paper-dim);">
             ${episodes.length} total
           </span>
@@ -694,8 +400,10 @@ function renderCase(anime, episodes) {
           ${episodes.slice(0, 24).map(ep => {
             const epNum = parseInt(ep.number) || parseInt(ep.episode) || 1;
             const epTitle = ep.title && ep.title !== `Episode ${epNum}` ? ep.title : '';
+            const epId = ep.episodeId || ep.id || '';
+
             return `
-              <div class="episode-card" onclick="playEpisode('${escapeHtml(anime.title)}', ${epNum})">
+              <div class="episode-card" data-ep-num="${epNum}" data-ep-id="${epId}">
                 <span class="ep-number">EP ${String(epNum).padStart(2, '0')}</span>
                 ${epTitle ? `<span class="ep-title">${escapeHtml(epTitle)}</span>` : ''}
                 <button class="ep-watch-btn">▶ Play</button>
@@ -744,6 +452,15 @@ function renderCase(anime, episodes) {
     $('#caseSaveBtn').classList.toggle('saved', nowSaved);
     $('#caseSaveBtn').textContent = nowSaved ? '★ On your shelf' : '☆ Add to shelf';
   });
+
+  // Episode click → HiAnime player
+  document.querySelectorAll('.episode-card').forEach(card => {
+    card.addEventListener('click', async () => {
+      const epNum = parseInt(card.dataset.epNum || '1');
+      const epId = card.dataset.epId || null;
+      await playEpisodeHiAnime(anime.title, epNum, epId);
+    });
+  });
 }
 
 function showAllEpisodes(title, total) {
@@ -756,11 +473,12 @@ function showAllEpisodes(title, total) {
   for (let i = currentCount + 1; i <= Math.min(currentCount + 12, total); i++) {
     const card = document.createElement('div');
     card.className = 'episode-card';
-    card.onclick = () => playEpisode(title, i);
+    card.dataset.epNum = String(i);
     card.innerHTML = `
       <span class="ep-number">EP ${String(i).padStart(2, '0')}</span>
       <button class="ep-watch-btn">▶ Play</button>
     `;
+    card.onclick = () => playEpisodeHiAnime(title, i, null);
     grid.appendChild(card);
   }
 
@@ -780,6 +498,88 @@ function closeCase() {
   document.body.style.overflow = '';
 }
 
+// ============================================================
+// HIANIME EPISODE PLAYER OVERLAY
+// ============================================================
+async function playEpisodeHiAnime(animeTitle, episodeNumber, episodeId) {
+  showToast(`🔍 Loading ${animeTitle} episode ${episodeNumber}...`);
+
+  if (!episodeId) {
+    const searchUrl = `https://hianime.ro/search?keyword=${encodeURIComponent(animeTitle)}`;
+    window.open(searchUrl, '_blank');
+    return;
+  }
+
+  const embedUrl = await getHiAnimeEmbed(episodeId);
+  if (!embedUrl) {
+    showToast('❌ Failed to get HiAnime stream. Opening HiAnime...');
+    const fallbackUrl = `https://hianime.ro/watch/${encodeURIComponent(episodeId)}`;
+    window.open(fallbackUrl, '_blank');
+    return;
+  }
+
+  showHiAnimePlayerOverlay(embedUrl, animeTitle, episodeNumber);
+}
+
+function showHiAnimePlayerOverlay(embedUrl, animeTitle, episodeNumber) {
+  const html = `
+    <div class="episode-player-overlay" id="episodePlayer">
+      <div class="episode-player-container">
+        <div class="episode-player-header">
+          <h3>${escapeHtml(animeTitle)} — EP ${String(episodeNumber).padStart(2, '0')}</h3>
+          <button class="episode-player-close" onclick="closeEpisodePlayer()">✕</button>
+        </div>
+
+        <div class="episode-player-frame">
+          <iframe src="${embedUrl}"
+                  allowfullscreen
+                  allow="autoplay; encrypted-media"
+                  style="width:100%;height:100%;border:none;">
+          </iframe>
+        </div>
+
+        <div class="episode-player-controls">
+          <button class="btn btn-ghost" onclick="openInNewTab()">🔗 Open in new tab</button>
+          <button class="btn btn-ghost" onclick="refreshIframe()">🔄 Refresh</button>
+          <span class="episode-player-note">
+            Powered by HiAnime · If video is blocked, try 🔗
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const old = document.getElementById('episodePlayer');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+}
+
+window.openInNewTab = function() {
+  const iframe = document.querySelector('#episodePlayer iframe');
+  if (iframe && iframe.src && iframe.src !== 'about:blank') {
+    window.open(iframe.src, '_blank');
+  }
+};
+window.refreshIframe = function() {
+  const iframe = document.querySelector('#episodePlayer iframe');
+  if (!iframe) return;
+  const src = iframe.src;
+  iframe.src = 'about:blank';
+  setTimeout(() => {
+    iframe.src = src;
+    showToast('🔄 Refreshed');
+  }, 300);
+};
+window.closeEpisodePlayer = function() {
+  const overlay = document.getElementById('episodePlayer');
+  if (overlay) overlay.remove();
+  document.body.style.overflow = '';
+};
+
+// ============================================================
+// WATCH LINKS
+// ============================================================
 function buildWatchLinks(title) {
   const q = encodeURIComponent(title);
   return [
@@ -796,7 +596,6 @@ function buildWatchLinks(title) {
 // ============================================================
 function renderLibrary() {
   const list = Object.values(getWatchlist());
-
   shelfTitle.textContent = 'My shelf';
   shelfCount.textContent = `${list.length} saved`;
 
@@ -941,7 +740,7 @@ function setView(view) {
 loadHome(1, false);
 
 // ============================================================
-// INSTALL NUDGE
+// INSTALL NUDGE (unchanged)
 // ============================================================
 (function initInstallPrompt() {
   const STORAGE_KEY = 'rewind_install_state_v1';
