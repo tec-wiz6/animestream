@@ -1,8 +1,11 @@
 // ============================================================
-// REWIND — anime discovery & tracker
-// Data sources: AniList (GraphQL) + Jikan (MyAnimeList REST)
-// No scraping, no video hosting — "Watch" deep-links to legit platforms.
+// REWIND — Complete Version with Video Player
 // ============================================================
+
+// API Configuration
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/api' 
+    : 'https://anime-stream-backend.vercel.app/api';
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const JIKAN_URL = 'https://api.jikan.moe/v4';
@@ -10,7 +13,7 @@ const WATCHLIST_KEY = 'rewind_watchlist_v1';
 
 // ---- state ----
 let state = {
-  view: 'home',            // 'home' | 'library'
+  view: 'home',
   genre: 'all',
   query: '',
   page: 1,
@@ -71,7 +74,7 @@ function showToast(msg) {
 }
 
 // ============================================================
-// NORMALIZE — AniList & Jikan shapes into one card model
+// NORMALIZE — AniList & Jikan shapes
 // ============================================================
 function fromAniList(m) {
   return {
@@ -160,7 +163,6 @@ async function fetchRecommendations(malId) {
   } catch { return []; }
 }
 
-// Genre name -> AniList genre string
 const GENRE_MAP = {
   1: 'Action', 4: 'Comedy', 8: 'Drama', 10: 'Fantasy',
   22: 'Romance', 24: 'Sci-Fi', 36: 'Slice of Life',
@@ -170,7 +172,7 @@ const GENRE_MAP = {
 // RENDERING — shelf grid
 // ============================================================
 function qualityBars(score) {
-  const n = score ? Math.round(parseFloat(score)) : 0; // 0-10 -> approximate 0-5 bars
+  const n = score ? Math.round(parseFloat(score)) : 0;
   const bars = Math.min(5, Math.max(0, Math.round(n / 2)));
   return Array.from({ length: 5 }, (_, i) =>
     `<span class="bar ${i < bars ? 'on' : ''}"></span>`).join('');
@@ -280,6 +282,7 @@ function caseSkeletonHTML() {
 function renderCase(anime, recs) {
   const saved = isSaved(anime.id);
   const watchLinks = buildWatchLinks(anime.title);
+  const hasAnimeId = anime.id && !anime.id.startsWith('mal-');
 
   caseContent.innerHTML = `
     <button class="case-close" id="caseClose">✕</button>
@@ -302,6 +305,7 @@ function renderCase(anime, recs) {
           <button class="btn btn-amber btn-save ${saved ? 'saved' : ''}" id="caseSaveBtn">
             ${saved ? '★ On your shelf' : '☆ Add to shelf'}
           </button>
+          ${hasAnimeId ? `<button class="btn btn-cyan" id="findEpisodesBtn">📺 Find Episodes</button>` : ''}
           ${anime.malId ? `<a class="btn btn-ghost" href="https://myanimelist.net/anime/${anime.malId}" target="_blank" rel="noopener">MAL page ↗</a>` : ''}
         </div>
       </div>
@@ -312,7 +316,7 @@ function renderCase(anime, recs) {
       <div class="watch-grid">
         ${watchLinks.map(l => `<a class="watch-link" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('')}
       </div>
-      <div class="watch-note">Opens a search on each platform — availability varies by region and licensing. REWIND doesn't host or stream video.</div>
+      <div class="watch-note">Opens a search on each platform — availability varies by region and licensing.</div>
     </div>
 
     ${recs.length ? `
@@ -328,12 +332,24 @@ function renderCase(anime, recs) {
     </div>` : ''}
   `;
 
+  // Event listeners
   $('#caseClose').addEventListener('click', closeCase);
+  
   $('#caseSaveBtn').addEventListener('click', () => {
     const nowSaved = toggleSave(anime);
     $('#caseSaveBtn').classList.toggle('saved', nowSaved);
     $('#caseSaveBtn').textContent = nowSaved ? '★ On your shelf' : '☆ Add to shelf';
   });
+  
+  // Find Episodes button
+  const findBtn = document.getElementById('findEpisodesBtn');
+  if (findBtn) {
+    findBtn.addEventListener('click', () => {
+      const animeId = anime.id.replace('al-', '');
+      findEpisodes(animeId, anime.title);
+    });
+  }
+  
   caseContent.querySelectorAll('.rec-card').forEach(card => {
     card.addEventListener('click', async () => {
       const malId = card.dataset.malid;
@@ -348,7 +364,232 @@ function closeCase() {
   document.body.style.overflow = '';
 }
 
-// deep-link builder — legal platform search, no scraping/embedding
+// ============================================================
+// FIND EPISODES - Gets episode list from backend
+// ============================================================
+async function findEpisodes(animeId, animeTitle) {
+  showToast(`📺 Finding episodes for "${animeTitle}"...`);
+  
+  try {
+    const response = await fetch(`${API_BASE}/episodes?id=${animeId}`);
+    const data = await response.json();
+    
+    if (data.success && data.episodes && data.episodes.length > 0) {
+      showEpisodeList(data.episodes, animeTitle);
+    } else {
+      showToast('❌ No episodes found for this anime');
+    }
+  } catch (error) {
+    console.error('Episodes error:', error);
+    showToast('❌ Failed to load episodes');
+  }
+}
+
+// ============================================================
+// SHOW EPISODE LIST - Displays all episodes in modal
+// ============================================================
+function showEpisodeList(episodes, animeTitle) {
+  const caseContent = document.getElementById('caseContent');
+  
+  let episodeHTML = `
+    <div class="episode-list-container">
+      <div class="episode-list-header">
+        <h3>📺 ${animeTitle} - All Episodes</h3>
+        <span class="episode-count">${episodes.length} episodes</span>
+      </div>
+      <div class="episode-list-grid">
+  `;
+  
+  episodes.forEach((ep, index) => {
+    const epNum = ep.episode || index + 1;
+    const epTitle = ep.title || `Episode ${epNum}`;
+    
+    episodeHTML += `
+      <div class="episode-item" data-episode-id="${ep.id}" data-episode-num="${epNum}">
+        <div class="episode-info">
+          <span class="episode-number">EP ${String(epNum).padStart(2, '0')}</span>
+          <span class="episode-title">${escapeHtml(epTitle)}</span>
+        </div>
+        <div class="episode-actions">
+          <button class="ep-btn play-btn" onclick="playEpisode('${ep.id}', '${escapeHtml(epTitle)}', '${escapeHtml(animeTitle)}')" title="Watch">
+            ▶
+          </button>
+          <button class="ep-btn download-btn" onclick="downloadEpisode('${ep.id}', '${escapeHtml(animeTitle)}', ${epNum})" title="Download">
+            ⬇
+          </button>
+          <button class="ep-btn save-btn" onclick="saveEpisode('${ep.id}', '${escapeHtml(animeTitle)}', ${epNum})" title="Save to shelf">
+            ☆
+          </button>
+        </div>
+      </div>
+    `;
+  });
+  
+  episodeHTML += `
+      </div>
+    </div>
+  `;
+  
+  caseContent.innerHTML = episodeHTML;
+}
+
+// ============================================================
+// PLAY EPISODE
+// ============================================================
+async function playEpisode(episodeId, episodeTitle, animeTitle) {
+  const playerModal = document.getElementById('playerModal');
+  const playerTitle = document.getElementById('playerTitle');
+  const playerWrapper = document.getElementById('playerWrapper');
+  
+  if (!playerModal) {
+    showToast('⚠️ Player not found');
+    return;
+  }
+  
+  playerTitle.textContent = `${animeTitle} - ${episodeTitle}`;
+  playerModal.classList.add('open');
+  
+  playerWrapper.innerHTML = `
+    <div class="player-loading" style="text-align:center;padding:40px;">
+      <div class="spinner"></div>
+      <p>Loading video...</p>
+    </div>
+  `;
+  
+  try {
+    const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
+    const data = await response.json();
+    
+    if (data.success && data.selected && data.selected.url) {
+      playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+      const video = document.getElementById('videoPlayer');
+      
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+        hls.loadSource(data.selected.url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+        video._hls = hls;
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = data.selected.url;
+        video.play().catch(() => {});
+      } else {
+        showPlayerError('HLS not supported in this browser.');
+      }
+    } else {
+      showPlayerError('No video sources found');
+    }
+  } catch (error) {
+    console.error('Player error:', error);
+    showPlayerError('Failed to load video');
+  }
+}
+
+// ============================================================
+// DOWNLOAD EPISODE
+// ============================================================
+async function downloadEpisode(episodeId, animeTitle, episodeNum) {
+  showToast(`⬇ Downloading ${animeTitle} - Episode ${episodeNum}...`);
+  
+  try {
+    const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
+    const data = await response.json();
+    
+    if (data.success && data.selected && data.selected.url) {
+      const videoUrl = data.selected.url;
+      const filename = `${animeTitle.replace(/[^a-zA-Z0-9]/g, '_')}_EP${String(episodeNum).padStart(2, '0')}.mp4`;
+      
+      const videoResponse = await fetch(videoUrl);
+      const blob = await videoResponse.blob();
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      
+      showToast(`✅ Downloaded ${filename}`);
+    } else {
+      showToast('❌ No video link found for download');
+    }
+  } catch (error) {
+    console.error('Download error:', error);
+    showToast('❌ Download failed');
+  }
+}
+
+// ============================================================
+// SAVE EPISODE
+// ============================================================
+function saveEpisode(episodeId, animeTitle, episodeNum) {
+  const saved = getWatchlist();
+  const key = `ep-${episodeId}`;
+  
+  if (saved[key]) {
+    delete saved[key];
+    showToast(`Removed EP ${episodeNum} from shelf`);
+  } else {
+    saved[key] = {
+      id: episodeId,
+      title: `${animeTitle} - EP ${episodeNum}`,
+      type: 'episode',
+      episode: episodeNum,
+      anime: animeTitle
+    };
+    showToast(`⭐ Added EP ${episodeNum} to shelf`);
+  }
+  saveWatchlist(saved);
+}
+
+// ============================================================
+// PLAYER FUNCTIONS
+// ============================================================
+function closePlayer() {
+  const playerModal = document.getElementById('playerModal');
+  const video = document.getElementById('videoPlayer');
+  
+  if (video) {
+    if (video._hls) {
+      video._hls.destroy();
+      delete video._hls;
+    }
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+  
+  if (playerModal) {
+    playerModal.classList.remove('open');
+  }
+  
+  const playerWrapper = document.getElementById('playerWrapper');
+  if (playerWrapper) {
+    playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+  }
+}
+
+function showPlayerError(message) {
+  const playerWrapper = document.getElementById('playerWrapper');
+  if (playerWrapper) {
+    playerWrapper.innerHTML = `
+      <div class="player-error">
+        <div class="icon">⚠️</div>
+        <p>${message}</p>
+      </div>
+    `;
+  }
+}
+
+// ============================================================
+// deep-link builder — legal platform search
+// ============================================================
 function buildWatchLinks(title) {
   const q = encodeURIComponent(title);
   return [
@@ -472,7 +713,20 @@ document.querySelectorAll('[data-view]').forEach(btn => {
 });
 
 caseModal.addEventListener('click', (e) => { if (e.target === caseModal) closeCase(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && caseModal.classList.contains('open')) closeCase(); });
+document.addEventListener('keydown', (e) => { 
+  if (e.key === 'Escape') {
+    if (caseModal.classList.contains('open')) closeCase();
+    const playerModal = document.getElementById('playerModal');
+    if (playerModal?.classList.contains('open')) closePlayer();
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const closeBtn = document.getElementById('closePlayer');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closePlayer);
+  }
+});
 
 function setView(view) {
   state.view = view;
@@ -488,18 +742,13 @@ function setView(view) {
 }
 
 // ============================================================
-// INIT
-// ============================================================
-loadHome(1, false);
-// ============================================================
-// INSTALL NUDGE — delayed, styled, and permanently silenced
-// once installed or repeatedly dismissed.
+// INSTALL PROMPT
 // ============================================================
 (function initInstallPrompt() {
   const STORAGE_KEY = 'rewind_install_state_v1';
   const SNOOZE_DAYS = 7;
-  const SHOW_AFTER_MS = 12000;       // fallback: 12s of active browsing this session
-  const SHOW_AFTER_ENGAGEMENT_MS = 2500; // faster path: shortly after they open a tape's detail view
+  const SHOW_AFTER_MS = 12000;
+  const SHOW_AFTER_ENGAGEMENT_MS = 2500;
 
   const promptEl = document.getElementById('installPrompt');
   const closeBtn = document.getElementById('installClose');
@@ -514,60 +763,52 @@ loadHome(1, false);
   }
   function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
 
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true; // iOS Safari flag
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  let installState = loadState();
 
-  let state = loadState();
-
-  // Already installed, or currently running as the installed app — never nag.
-  if (state.installed || isStandalone) {
-    if (isStandalone && !state.installed) { state.installed = true; saveState(state); }
+  if (installState.installed || isStandalone) {
+    if (isStandalone && !installState.installed) { installState.installed = true; saveState(installState); }
     return;
   }
 
-  // Count this as a visit (once per tab session).
   if (!sessionStorage.getItem('rewind_visit_counted')) {
-    state.visits = (state.visits || 0) + 1;
-    saveState(state);
+    installState.visits = (installState.visits || 0) + 1;
+    saveState(installState);
     sessionStorage.setItem('rewind_visit_counted', '1');
   }
 
   function isSnoozed() {
-    return state.dismissedAt && (Date.now() - state.dismissedAt) < SNOOZE_DAYS * 86400000;
+    return installState.dismissedAt && (Date.now() - installState.dismissedAt) < SNOOZE_DAYS * 86400000;
   }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   let deferredPrompt = null;
 
-  // Chrome/Edge/Android fire this — we intercept it and show our own styled card instead.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     scheduleShow();
   });
 
-  // Real engagement — they opened a tape's detail view. Faster + more reliable
-  // than betting on a raw timer for someone who might leave in 10 seconds.
   window.addEventListener('rewind:engaged', () => {
-    if (isSnoozed() || state.installed) return;
+    if (isSnoozed() || installState.installed) return;
     setTimeout(maybeShow, SHOW_AFTER_ENGAGEMENT_MS);
   }, { once: true });
 
   window.addEventListener('appinstalled', () => {
-    state.installed = true;
-    saveState(state);
+    installState.installed = true;
+    saveState(installState);
     hidePrompt();
     showToast('Installed — find REWIND on your home screen 📼');
   });
 
   function scheduleShow() {
-    if (isSnoozed() || state.installed) return;
-    // Fallback timer — fires even if they never open a detail card.
+    if (isSnoozed() || installState.installed) return;
     setTimeout(maybeShow, SHOW_AFTER_MS);
   }
 
   function maybeShow() {
-    if (state.installed || isSnoozed()) return;
+    if (installState.installed || isSnoozed()) return;
     if (isIOS) {
       headlineEl.textContent = 'Add REWIND to your home screen';
       bodyEl.textContent = 'Tap the Share icon, then "Add to Home Screen." Opens full-screen, no browser bar.';
@@ -577,41 +818,42 @@ loadHome(1, false);
       bodyEl.textContent = "Install it once — opens instantly from your home screen, no browser bar, no reloading the search.";
       confirmBtn.textContent = '▶ Install';
     }
-    promptEl.classList.add('show');
+    if (promptEl) promptEl.classList.add('show');
   }
 
   function hidePrompt() {
-    promptEl.classList.remove('show');
+    if (promptEl) promptEl.classList.remove('show');
   }
 
   function snooze() {
-    state.dismissedAt = Date.now();
-    saveState(state);
+    installState.dismissedAt = Date.now();
+    saveState(installState);
     hidePrompt();
   }
 
-  closeBtn.addEventListener('click', snooze);
-  dismissBtn.addEventListener('click', snooze);
+  if (closeBtn) closeBtn.addEventListener('click', snooze);
+  if (dismissBtn) dismissBtn.addEventListener('click', snooze);
 
-  confirmBtn.addEventListener('click', async () => {
-    if (isIOS) { snooze(); return; } // just an acknowledgement, no programmatic install possible on iOS
-    if (!deferredPrompt) { snooze(); return; }
-    hidePrompt();
-    const { outcome } = await deferredPrompt.prompt();
-    deferredPrompt = null;
-    if (outcome !== 'accepted') {
-      // They said no in the native dialog — respect it, snooze same as a dismiss.
-      state.dismissedAt = Date.now();
-      saveState(state);
-    }
-    // If accepted, the 'appinstalled' listener above handles marking installed.
-  });
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', async () => {
+      if (isIOS) { snooze(); return; }
+      if (!deferredPrompt) { snooze(); return; }
+      hidePrompt();
+      const { outcome } = await deferredPrompt.prompt();
+      deferredPrompt = null;
+      if (outcome !== 'accepted') {
+        installState.dismissedAt = Date.now();
+        saveState(installState);
+      }
+    });
+  }
 
-  // iOS never fires beforeinstallprompt, so gate purely on time/visits for it.
   if (isIOS) scheduleShow();
-
-  // Safety net: if beforeinstallprompt never fires within 4s of scheduling window
-  // opening (some browsers delay it), iOS path already handles itself above.
 })();
 
-console.log('📼 REWIND loaded — legit metadata only, no stream extraction.');
+// ============================================================
+// INIT
+// ============================================================
+loadHome(1, false);
+console.log('📼 REWIND loaded — with video player and episode list!');
+console.log('📡 API:', API_BASE);
