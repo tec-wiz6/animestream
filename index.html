@@ -18,8 +18,8 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="REWIND — Anime Tape Deck">
 <meta property="og:description" content="Discover anime, track what you're watching, and find where to stream it — legally.">
-<meta property="og:image" content="https://rewind-anime.vercel.app//icons/og-image.png">
-<meta property="og:url" content="https://rewind-anime.vercel.app/.vercel.app">
+<meta property="og:image" content="https://rewind-anime.vercel.app/icons/og-image.png">
+<meta property="og:url" content="https://rewind-anime.vercel.app">
 
 <!-- Twitter / X Card -->
 <meta name="twitter:card" content="summary_large_image">
@@ -91,6 +91,22 @@
 <template id="toastTemplate">
   <div class="toast"></div>
 </template>
+
+<!-- Install nudge — styled like a tape sliding into the deck -->
+<div class="install-prompt" id="installPrompt">
+  <div class="install-card">
+    <button class="install-close" id="installClose" aria-label="Dismiss">✕</button>
+    <div class="install-icon">📼</div>
+    <div class="install-copy">
+      <h3 id="installHeadline">Keep REWIND on your shelf</h3>
+      <p id="installBody">Install it once — opens instantly from your home screen, no browser bar, no reloading the search.</p>
+    </div>
+    <div class="install-actions">
+      <button class="btn btn-amber" id="installConfirm">▶ Install</button>
+      <button class="btn btn-ghost" id="installDismiss">Not now</button>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>
