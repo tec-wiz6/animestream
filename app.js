@@ -165,7 +165,96 @@ const GENRE_MAP = {
   1: 'Action', 4: 'Comedy', 8: 'Drama', 10: 'Fantasy',
   22: 'Romance', 24: 'Sci-Fi', 36: 'Slice of Life',
 };
+// ============================================================
+// VIDEO PLAYER (Add to app.js)
+// ============================================================
 
+async function playEpisode(episodeId, episodeTitle, animeTitle) {
+    const playerModal = document.getElementById('playerModal');
+    const playerTitle = document.getElementById('playerTitle');
+    const playerWrapper = document.getElementById('playerWrapper');
+    
+    playerTitle.textContent = `${animeTitle} - ${episodeTitle}`;
+    playerModal.classList.add('open');
+    
+    // Show loading
+    playerWrapper.innerHTML = `
+        <div class="player-loading" style="text-align:center;padding:40px;">
+            <div class="spinner"></div>
+            <p>Loading video...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
+        const data = await response.json();
+        
+        if (data.success && data.videoUrl) {
+            playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+            const video = document.getElementById('videoPlayer');
+            
+            if (Hls.isSupported()) {
+                const hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true
+                });
+                hls.loadSource(data.videoUrl);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play().catch(() => {});
+                });
+                video._hls = hls;
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = data.videoUrl;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play().catch(() => {});
+                });
+            }
+        } else {
+            playerWrapper.innerHTML = `
+                <div style="text-align:center;padding:40px;color:var(--paper-dim);">
+                    <p style="font-size:48px;margin-bottom:16px;">⚠️</p>
+                    <p>No video link found. Try another episode.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Player error:', error);
+        playerWrapper.innerHTML = `
+            <div style="text-align:center;padding:40px;color:var(--paper-dim);">
+                <p style="font-size:48px;margin-bottom:16px;">📼</p>
+                <p>Failed to load video. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+function closePlayer() {
+    const playerModal = document.getElementById('playerModal');
+    const video = document.getElementById('videoPlayer');
+    if (video) {
+        if (video._hls) {
+            video._hls.destroy();
+            delete video._hls;
+        }
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+    }
+    playerModal.classList.remove('open');
+    document.getElementById('playerWrapper').innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+}
+
+// Add event listener for close button
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('closePlayer')?.addEventListener('click', closePlayer);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('playerModal');
+            if (modal?.classList.contains('open')) closePlayer();
+        }
+    });
+});
 // ============================================================
 // RENDERING — shelf grid
 // ============================================================
