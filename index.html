@@ -1,1 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>REWIND — Anime Tape Deck</title>
+<meta name="theme-color" content="#0D1014">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+<div class="grain"></div>
+
+<!-- ============ TOP DECK ============ -->
+<header class="deck">
+  <div class="deck-brand">
+    <span class="deck-logo">REWIND</span>
+    <span class="deck-tag">be kind, please rewind</span>
+  </div>
+  <nav class="deck-tabs" id="deckTabs">
+    <button class="deck-tab active" data-view="home">ON&nbsp;AIR</button>
+    <button class="deck-tab" data-view="library">MY&nbsp;SHELF</button>
+  </nav>
+</header>
+
+<!-- ============ SLOT (search) ============ -->
+<div class="slot-wrap">
+  <div class="slot">
+    <div class="slot-led" id="slotLed"></div>
+    <input type="text" id="searchInput" placeholder="INSERT TITLE AND PRESS PLAY…" autocomplete="off">
+    <button class="slot-eject" id="clearSearch" title="Eject">⏏</button>
+  </div>
+  <div class="slot-readout" id="slotReadout">STANDBY · browsing what's trending</div>
+</div>
+
+<!-- ============ GENRE SPOOLS ============ -->
+<div class="spool-row" id="genreRow">
+  <button class="spool active" data-genre="all">ALL</button>
+  <button class="spool" data-genre="1">Action</button>
+  <button class="spool" data-genre="4">Comedy</button>
+  <button class="spool" data-genre="8">Drama</button>
+  <button class="spool" data-genre="10">Fantasy</button>
+  <button class="spool" data-genre="22">Romance</button>
+  <button class="spool" data-genre="24">Sci-Fi</button>
+  <button class="spool" data-genre="36">Slice of Life</button>
+</div>
+
+<!-- ============ SHELF (grid) ============ -->
+<main class="shelf-container">
+  <div class="shelf-header">
+    <h2 id="shelfTitle">Trending this season</h2>
+    <span class="shelf-count" id="shelfCount">loading…</span>
+  </div>
+  <div class="shelf" id="shelf"></div>
+  <button class="load-more" id="loadMore" style="display:none;">▼ LOAD MORE TAPES</button>
+</main>
+
+<!-- ============ DETAIL MODAL (opened tape case) ============ -->
+<div class="case-modal" id="caseModal">
+  <div class="case" id="caseContent"></div>
+</div>
+
+<!-- ============ TAB BAR (mobile) ============ -->
+<div class="tabbar">
+  <button class="tab active" data-view="home">⏵ On Air</button>
+  <button class="tab" data-view="library">☰ Shelf</button>
+</div>
+
+<template id="toastTemplate">
+  <div class="toast"></div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
