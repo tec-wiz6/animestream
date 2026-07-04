@@ -1,8 +1,15 @@
 // ============================================================
-// REWIND — anime discovery & tracker
+// REWIND — anime discovery & tracker WITH VIDEO PLAYER
 // Data sources: AniList (GraphQL) + Jikan (MyAnimeList REST)
-// No scraping, no video hosting — "Watch" deep-links to legit platforms.
+// Video: Backend API (AnimePahe via cloudscraper)
 // ============================================================
+
+// ============================================================
+// API CONFIGURATION - LINKS FRONTEND TO BACKEND
+// ============================================================
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/api' 
+    : 'https://anime-stream-backend.vercel.app/api';  // ✅ YOUR BACKEND
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const JIKAN_URL = 'https://api.jikan.moe/v4';
@@ -165,96 +172,7 @@ const GENRE_MAP = {
   1: 'Action', 4: 'Comedy', 8: 'Drama', 10: 'Fantasy',
   22: 'Romance', 24: 'Sci-Fi', 36: 'Slice of Life',
 };
-// ============================================================
-// VIDEO PLAYER (Add to app.js)
-// ============================================================
 
-async function playEpisode(episodeId, episodeTitle, animeTitle) {
-    const playerModal = document.getElementById('playerModal');
-    const playerTitle = document.getElementById('playerTitle');
-    const playerWrapper = document.getElementById('playerWrapper');
-    
-    playerTitle.textContent = `${animeTitle} - ${episodeTitle}`;
-    playerModal.classList.add('open');
-    
-    // Show loading
-    playerWrapper.innerHTML = `
-        <div class="player-loading" style="text-align:center;padding:40px;">
-            <div class="spinner"></div>
-            <p>Loading video...</p>
-        </div>
-    `;
-    
-    try {
-        const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
-        const data = await response.json();
-        
-        if (data.success && data.videoUrl) {
-            playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
-            const video = document.getElementById('videoPlayer');
-            
-            if (Hls.isSupported()) {
-                const hls = new Hls({
-                    enableWorker: true,
-                    lowLatencyMode: true
-                });
-                hls.loadSource(data.videoUrl);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    video.play().catch(() => {});
-                });
-                video._hls = hls;
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = data.videoUrl;
-                video.addEventListener('loadedmetadata', () => {
-                    video.play().catch(() => {});
-                });
-            }
-        } else {
-            playerWrapper.innerHTML = `
-                <div style="text-align:center;padding:40px;color:var(--paper-dim);">
-                    <p style="font-size:48px;margin-bottom:16px;">⚠️</p>
-                    <p>No video link found. Try another episode.</p>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Player error:', error);
-        playerWrapper.innerHTML = `
-            <div style="text-align:center;padding:40px;color:var(--paper-dim);">
-                <p style="font-size:48px;margin-bottom:16px;">📼</p>
-                <p>Failed to load video. Please try again.</p>
-            </div>
-        `;
-    }
-}
-
-function closePlayer() {
-    const playerModal = document.getElementById('playerModal');
-    const video = document.getElementById('videoPlayer');
-    if (video) {
-        if (video._hls) {
-            video._hls.destroy();
-            delete video._hls;
-        }
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-    }
-    playerModal.classList.remove('open');
-    document.getElementById('playerWrapper').innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
-}
-
-// Add event listener for close button
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('closePlayer')?.addEventListener('click', closePlayer);
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('playerModal');
-            if (modal?.classList.contains('open')) closePlayer();
-        }
-    });
-});
 // ============================================================
 // RENDERING — shelf grid
 // ============================================================
@@ -391,6 +309,7 @@ function renderCase(anime, recs) {
             ${saved ? '★ On your shelf' : '☆ Add to shelf'}
           </button>
           ${anime.malId ? `<a class="btn btn-ghost" href="https://myanimelist.net/anime/${anime.malId}" target="_blank" rel="noopener">MAL page ↗</a>` : ''}
+          <button class="btn btn-ghost" onclick="searchAnimePahe('${escapeHtml(anime.title)}')">🎬 Find on AnimePahe</button>
         </div>
       </div>
     </div>
@@ -436,7 +355,137 @@ function closeCase() {
   document.body.style.overflow = '';
 }
 
-// deep-link builder — legal platform search, no scraping/embedding
+// ============================================================
+// ANIMEPAHE SEARCH & PLAY (NEW!)
+// ============================================================
+async function searchAnimePahe(query) {
+  showToast(`🔍 Searching AnimePahe for "${query}"...`);
+  try {
+    const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    
+    if (data.success && data.results && data.results.length > 0) {
+      // Show first result in toast
+      const first = data.results[0];
+      showToast(`✅ Found: ${first.title} (${first.episodes} episodes)`);
+      
+      // Open a mini modal or just play the first episode
+      if (confirm(`Found "${first.title}" on AnimePahe. Watch now?`)) {
+        // Get episodes for this anime
+        const epResponse = await fetch(`${API_BASE}/episodes?id=${first.id}`);
+        const epData = await epResponse.json();
+        
+        if (epData.success && epData.episodes && epData.episodes.length > 0) {
+          // Play the first episode
+          const firstEp = epData.episodes[0];
+          playEpisode(firstEp.id, `Episode ${firstEp.episode}`, first.title);
+        }
+      }
+    } else {
+      showToast('❌ No results found on AnimePahe');
+    }
+  } catch (error) {
+    console.error('AnimePahe search error:', error);
+    showToast('❌ Failed to search AnimePahe');
+  }
+}
+
+// ============================================================
+// VIDEO PLAYER (NEW!)
+// ============================================================
+async function playEpisode(episodeId, episodeTitle, animeTitle) {
+  const playerModal = document.getElementById('playerModal');
+  const playerTitle = document.getElementById('playerTitle');
+  const playerWrapper = document.getElementById('playerWrapper');
+  
+  if (!playerModal) {
+    showToast('⚠️ Player not found. Check your HTML.');
+    return;
+  }
+  
+  playerTitle.textContent = `${animeTitle} - ${episodeTitle}`;
+  playerModal.classList.add('open');
+  
+  // Show loading
+  playerWrapper.innerHTML = `
+    <div style="text-align:center;padding:40px;color:var(--paper-dim);">
+      <div class="spinner" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--amber);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>
+      <p>Loading video...</p>
+    </div>
+  `;
+  
+  try {
+    const response = await fetch(`${API_BASE}/video?id=${episodeId}`);
+    const data = await response.json();
+    
+    if (data.success && data.videoUrl) {
+      playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+      const video = document.getElementById('videoPlayer');
+      
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true
+        });
+        hls.loadSource(data.videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+        video._hls = hls;
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = data.videoUrl;
+        video.addEventListener('loadedmetadata', () => {
+          video.play().catch(() => {});
+        });
+      } else {
+        showToast('⚠️ HLS not supported in this browser.');
+      }
+    } else {
+      playerWrapper.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--paper-dim);">
+          <p style="font-size:48px;margin-bottom:16px;">📼</p>
+          <p>No video link found.</p>
+          <p style="font-size:12px;margin-top:8px;">Try a different episode or source.</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Player error:', error);
+    playerWrapper.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--paper-dim);">
+        <p style="font-size:48px;margin-bottom:16px;">⚠️</p>
+        <p>Failed to load video.</p>
+        <p style="font-size:12px;margin-top:8px;">${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+function closePlayer() {
+  const playerModal = document.getElementById('playerModal');
+  const video = document.getElementById('videoPlayer');
+  if (video) {
+    if (video._hls) {
+      video._hls.destroy();
+      delete video._hls;
+    }
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+  if (playerModal) {
+    playerModal.classList.remove('open');
+  }
+  const playerWrapper = document.getElementById('playerWrapper');
+  if (playerWrapper) {
+    playerWrapper.innerHTML = `<video id="videoPlayer" controls playsinline></video>`;
+  }
+}
+
+// ============================================================
+// deep-link builder — legal platform search
+// ============================================================
 function buildWatchLinks(title) {
   const q = encodeURIComponent(title);
   return [
@@ -560,7 +609,21 @@ document.querySelectorAll('[data-view]').forEach(btn => {
 });
 
 caseModal.addEventListener('click', (e) => { if (e.target === caseModal) closeCase(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && caseModal.classList.contains('open')) closeCase(); });
+document.addEventListener('keydown', (e) => { 
+  if (e.key === 'Escape' && caseModal.classList.contains('open')) closeCase(); 
+  if (e.key === 'Escape') {
+    const playerModal = document.getElementById('playerModal');
+    if (playerModal?.classList.contains('open')) closePlayer();
+  }
+});
+
+// Close player button event
+document.addEventListener('DOMContentLoaded', () => {
+  const closeBtn = document.getElementById('closePlayer');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closePlayer);
+  }
+});
 
 function setView(view) {
   state.view = view;
@@ -579,4 +642,5 @@ function setView(view) {
 // INIT
 // ============================================================
 loadHome(1, false);
-console.log('📼 REWIND loaded — legit metadata only, no stream extraction.');
+console.log('📼 REWIND loaded — with AnimePahe video streaming!');
+console.log('📡 API:', API_BASE);
