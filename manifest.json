@@ -1,15 +1,11 @@
 {
-  "name": "AniStream - Watch Anime Free",
-  "short_name": "AniStream",
-  "description": "Free anime streaming with no ads",
+  "name": "REWIND — Anime Tape Deck",
+  "short_name": "REWIND",
+  "description": "Discover and track anime. Watch buttons link out to licensed streaming platforms.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0B0D12",
-  "theme_color": "#0B0D12",
-  "orientation": "portrait",
-  "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ],
-  "categories": ["entertainment", "video", "anime"]
+  "background_color": "#0D1014",
+  "theme_color": "#0D1014",
+  "orientation": "portrait-primary",
+  "icons": []
 }
