@@ -18,14 +18,14 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="REWIND — Anime Tape Deck">
 <meta property="og:description" content="Discover anime, track what you're watching, and find where to stream it — legally.">
-<meta property="og:image" content="https://rewind-anime.vercel.app/icons/og-image.png">
-<meta property="og:url" content="https://rewind-anime.vercel.app">
+<meta property="og:image" content="https://YOUR-DOMAIN-HERE.vercel.app/icons/og-image.png">
+<meta property="og:url" content="https://YOUR-DOMAIN-HERE.vercel.app">
 
 <!-- Twitter / X Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="REWIND — Anime Tape Deck">
 <meta name="twitter:description" content="Discover anime, track what you're watching, and find where to stream it — legally.">
-<meta name="twitter:image" content="https://rewind-anime.vercel.app/icons/og-image.png">
+<meta name="twitter:image" content="https://YOUR-DOMAIN-HERE.vercel.app/icons/og-image.png">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -81,33 +81,7 @@
 <div class="case-modal" id="caseModal">
   <div class="case" id="caseContent"></div>
 </div>
-<!-- ============ PLAYER OVERLAY (UPDATED FOR MOBILE) ============ -->
-<div class="player-modal" id="playerModal">
-    <div class="player-header">
-        <button class="player-close" id="closePlayer">✕</button>
-        <span class="player-title" id="playerTitle">Now Playing</span>
-    </div>
-    <div class="player-wrapper" id="playerWrapper">
-        <!-- The iframe will be injected here by JavaScript -->
-        <div id="tape-deck-screen">
-            <div class="video-wrapper">
-                <iframe id="videoIframe" 
-                        allowfullscreen="true" 
-                        webkitallowfullscreen="true" 
-                        mozallowfullscreen="true" 
-                        scrolling="no" 
-                        sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation">
-                </iframe>
-            </div>
-        </div>
-    </div>
-    <!-- Source switcher for mobile -->
-    <div class="player-controls" id="playerControls">
-        <button class="source-btn" data-source="vidsrc">Source 1</button>
-        <button class="source-btn" data-source="embedsu">Source 2</button>
-        <button class="source-btn" data-source="vidsrccc">Source 3</button>
-    </div>
-</div>
+
 <!-- ============ TAB BAR (mobile) ============ -->
 <div class="tabbar">
   <button class="tab active" data-view="home">⏵ On Air</button>
