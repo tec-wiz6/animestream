@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>REWIND — Detail</title>
+<meta name="theme-color" content="#0D1014">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="deck">
+  <div class="deck-brand">
+    <span class="deck-logo">REWIND</span>
+    <span class="deck-tag">be kind, please rewind</span>
+  </div>
+  <nav class="deck-tabs">
+    <a class="deck-tab" href="index.html">ON&nbsp;AIR</a>
+    <a class="deck-tab" href="shelf.html">MY&nbsp;SHELF</a>
+  </nav>
+</header>
+
+<section class="detail-hero" id="detailHero">
+  <div class="bg" id="detailBg"></div>
+  <a class="back-btn" href="index.html">‹ Back</a>
+</section>
+
+<div class="detail-hero-inner" id="detailHeroInner">
+  <div class="skeleton detail-poster" id="detailPoster"></div>
+  <div class="detail-info" id="detailInfo">
+    <div class="skeleton" style="height:36px;width:60%;margin-bottom:10px;border-radius:6px;"></div>
+    <div class="skeleton" style="height:14px;width:40%;border-radius:6px;"></div>
+  </div>
+</div>
+
+<div class="detail-body">
+  <div class="detail-section">
+    <h3>Synopsis</h3>
+    <div class="synopsis-block" id="synopsisBlock">Loading…</div>
+  </div>
+
+  <div class="detail-section">
+    <h3>Episodes</h3>
+    <div class="ep-list" id="epList"></div>
+  </div>
+
+  <div class="detail-section" id="watchBlock" style="display:none;">
+    <h3>Where to watch (licensed platforms)</h3>
+    <div class="watch-grid" id="watchGrid"></div>
+    <div class="watch-note">Opens a search on each platform — availability varies by region.</div>
+  </div>
+
+  <div class="detail-section" id="recBlock" style="display:none;">
+    <h3>More like this</h3>
+    <div class="rec-row" id="recRow"></div>
+  </div>
+</div>
+
+<div class="tabbar">
+  <a class="tab" href="index.html">⏵ On Air</a>
+  <a class="tab" href="shelf.html">☰ Shelf</a>
+</div>
+
+<script src="js/shared.js"></script>
+<script src="js/detail.js"></script>
+</body>
+</html>

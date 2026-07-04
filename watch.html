@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>REWIND — Now Playing</title>
+<meta name="theme-color" content="#0D1014">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="deck">
+  <div class="deck-brand">
+    <span class="deck-logo">REWIND</span>
+  </div>
+  <nav class="deck-tabs">
+    <a class="deck-tab" href="index.html">ON&nbsp;AIR</a>
+    <a class="deck-tab" href="shelf.html">MY&nbsp;SHELF</a>
+  </nav>
+</header>
+
+<div class="player-shell">
+  <div class="player-topbar">
+    <a class="back-btn" style="position:static;" id="backToDetail" href="index.html">‹ Back to detail</a>
+    <div class="player-title" id="playerTitle">Loading…</div>
+  </div>
+
+  <div class="player-layout">
+    <div>
+      <div class="player-screen" id="playerScreen">
+        <div class="player-static-overlay"></div>
+        <div class="player-placeholder" id="playerPlaceholder">
+          <div class="glyph">📼</div>
+          <h3>Licensed playback coming soon</h3>
+          <p>This deck is wired and ready — it just needs a licensed video source plugged in. No stream is hosted here yet.</p>
+        </div>
+      </div>
+
+      <div class="detail-section" id="recBlock" style="display:none;padding-top:24px;">
+        <h3>More like this</h3>
+        <div class="rec-row" id="recRow"></div>
+      </div>
+    </div>
+
+    <aside class="ep-sidebar">
+      <h4>Episodes</h4>
+      <div id="epSidebarList"></div>
+    </aside>
+  </div>
+</div>
+
+<div class="tabbar">
+  <a class="tab" href="index.html">⏵ On Air</a>
+  <a class="tab" href="shelf.html">☰ Shelf</a>
+</div>
+
+<script src="js/shared.js"></script>
+<script src="js/watch.js"></script>
+</body>
+</html>
