@@ -1,64 +1,97 @@
 // ============================================================
-// REWIND — watch.js
-//
-// This page is a PLACEHOLDER PLAYER SHELL. It does not fetch, scrape,
-// or embed video from any third-party site. Once you have a licensed
-// video source (your own hosting + license, or a licensed partner API),
-// wire it into `VIDEO_SOURCE_FOR` below — everything else (episode
-// switching, progress tracking, layout) is already built around it.
+// REWIND — watch.js (UPDATED WITH AWAIT)
 // ============================================================
 const $ = (sel) => document.querySelector(sel);
 
 const id = qs('id');
 const epParam = parseInt(qs('ep') || '1', 10);
 
-// TODO: once licensed, return a real playable URL (HLS .m3u8 from your
-// own licensed encode, or a licensed partner's embed) for (anime, episode).
-// Returning null keeps the placeholder screen showing.
-function VIDEO_SOURCE_FOR(anime, episode) {
-  return null;
+// ============================================================
+// VIDEO SOURCE WITH ON-DEMAND SCRAPING
+// ============================================================
+async function VIDEO_SOURCE_FOR(anime, episode) {
+  try {
+    const animeId = anime.malId || anime.id;
+    
+    const response = await fetch(
+      `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(animeId)}/play/${episode}`
+    );
+    
+    if (!response.ok) {
+      console.error('Failed to fetch video:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log('📺 Video source:', data);
+    
+    if (data.backgroundScraping) {
+      console.log('🔄 Background scraping full season...');
+    }
+    
+    return data.url || null;
+    
+  } catch (error) {
+    console.error('Error fetching video source:', error);
+    return null;
+  }
 }
 
-async function init() {
-  if (!id) { window.location.href = 'index.html'; return; }
-  const cached = window.__animeCache && window.__animeCache[id];
-  let anime = cached || await resolveAnimeById(id);
-  if (!anime) {
-    $('#playerTitle').textContent = 'Not found';
+// ============================================================
+// RENDER PLAYER (FIXED - AWAITS VIDEO URL)
+// ============================================================
+async function renderPlayer(anime, episode) {
+  const screen = $('#playerScreen');
+
+  // Show loading state
+  document.getElementById('playerPlaceholder').innerHTML = `
+    <div class="glyph">🔄</div>
+    <h3>Loading episode...</h3>
+    <p>Fetching video source (this may take a few seconds for new anime)</p>
+  `;
+
+  let src;
+  try {
+    src = await VIDEO_SOURCE_FOR(anime, episode);
+  } catch (e) {
+    console.error('Error getting video source:', e);
+    src = null;
+  }
+
+  if (!src) {
+    setTimeout(() => {
+      if (screen.querySelector('video')) return;
+      document.getElementById('playerPlaceholder').innerHTML = `
+        <div class="glyph">⚠️</div>
+        <h3>Could not load video</h3>
+        <p>Try refreshing or selecting another episode.</p>
+      `;
+    }, 30000);
     return;
   }
-  if (anime.malId && (!anime.description || anime.description === 'No synopsis available.')) {
-    const full = await fetchFullByMalId(anime.malId).catch(() => null);
-    if (full) anime = { ...full, id: anime.id };
-  }
-  window.dispatchEvent(new CustomEvent('rewind:engaged'));
 
-  const epCount = anime.episodes && anime.episodes !== '?' ? Math.min(anime.episodes, 100) : Math.max(epParam, 12);
-  const episode = Math.min(Math.max(epParam, 1), epCount);
+  screen.innerHTML = `<video controls playsinline autoplay src="${src}"></video>`;
 
-  $('#backToDetail').href = `detail.html?id=${encodeURIComponent(anime.id)}`;
-  $('#playerTitle').innerHTML = `${escapeHtml(anime.title)} <span class="ep">EP ${episode}</span>`;
-
-  renderEpisodeSidebar(anime, epCount, episode);
-  renderPlayer(anime, episode);
-  setProgress(anime, episode);
-
-  if (anime.malId) {
-    const recs = await fetchRecommendations(anime.malId);
-    if (recs.length) {
-      $('#recRow').innerHTML = recs.map(r => `
-        <a class="rec-card" href="detail.html?id=${encodeURIComponent(r.id)}">
-          ${r.image ? `<img src="${r.image}" alt="${escapeHtml(r.title)}">` : ''}
-          <div class="t">${escapeHtml(r.title)}</div>
-        </a>`).join('');
-      $('#recBlock').style.display = '';
-    }
+  const video = screen.querySelector('video');
+  if (video) {
+    video.addEventListener('waiting', () => {
+      const ph = document.getElementById('playerPlaceholder');
+      ph.style.display = 'block';
+      ph.querySelector('.glyph').textContent = '🔄';
+      ph.querySelector('h3').textContent = 'Buffering...';
+    });
+    video.addEventListener('playing', () => {
+      document.getElementById('playerPlaceholder').style.display = 'none';
+    });
   }
 }
 
+// ============================================================
+// RENDER EPISODE SIDEBAR
+// ============================================================
 function renderEpisodeSidebar(anime, epCount, activeEp) {
   const list = $('#epSidebarList');
-  list.innerHTML = Array.from({ length: epCount }, (_, i) => {
+  list.innerHTML = Array.from({ length: Math.min(epCount, 100) }, (_, i) => {
     const n = i + 1;
     return `<a class="ep-row ${n === activeEp ? 'active' : ''}" href="watch.html?id=${encodeURIComponent(anime.id)}&ep=${n}">
       <span>Episode ${n}</span><span class="num">EP ${String(n).padStart(2, '0')}</span>
@@ -66,11 +99,92 @@ function renderEpisodeSidebar(anime, epCount, activeEp) {
   }).join('');
 }
 
-function renderPlayer(anime, episode) {
-  const src = VIDEO_SOURCE_FOR(anime, episode);
-  const screen = $('#playerScreen');
-  if (!src) return; // keep the placeholder shown
-  screen.innerHTML = `<video controls playsinline autoplay src="${src}"></video>`;
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  if (!id) { window.location.href = 'index.html'; return; }
+  try {
+    const cached = window.__animeCache && window.__animeCache[id];
+    let anime = cached || await resolveAnimeById(id);
+    if (!anime) {
+      showLoadError();
+      return;
+    }
+    if (anime.malId && (!anime.description || anime.description === 'No synopsis available.')) {
+      const full = await fetchFullByMalId(anime.malId);
+      if (full) anime = { ...full, id: anime.id };
+    }
+    window.dispatchEvent(new CustomEvent('rewind:engaged'));
+
+    const epCount = anime.episodes && anime.episodes !== '?' ? Math.min(anime.episodes, 100) : Math.max(epParam, 12);
+    const episode = Math.min(Math.max(epParam, 1), epCount);
+
+    $('#backToDetail').href = `detail.html?id=${encodeURIComponent(anime.id)}`;
+    $('#playerTitle').innerHTML = `${escapeHtml(anime.title)} <span class="ep">EP ${episode}</span>`;
+
+    // Get actual episode count from API
+    try {
+      const epResponse = await fetch(
+        `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(anime.id)}/episodes`
+      );
+      if (epResponse.ok) {
+        const epData = await epResponse.json();
+        if (epData.episodes && epData.episodes.length > 0) {
+          renderEpisodeSidebar(anime, epData.episodes.length, episode);
+        } else {
+          renderEpisodeSidebar(anime, epCount, episode);
+        }
+      }
+    } catch (e) {
+      renderEpisodeSidebar(anime, epCount, episode);
+    }
+
+    // FIXED: Await renderPlayer
+    await renderPlayer(anime, episode);
+    setProgress(anime, episode);
+
+    if (anime.malId) {
+      const recs = await fetchRecommendations(anime.malId);
+      if (recs.length) {
+        $('#recRow').innerHTML = recs.map(r => `
+          <a class="rec-card" href="detail.html?id=${encodeURIComponent(r.id)}">
+            ${r.image ? `<img src="${r.image}" alt="${escapeHtml(r.title)}">` : ''}
+            <div class="t">${escapeHtml(r.title)}</div>
+          </a>`).join('');
+        $('#recBlock').style.display = '';
+      }
+    }
+  } catch (err) {
+    console.error('REWIND watch page load failed:', err);
+    showLoadError();
+  }
 }
+
+function showLoadError() {
+  $('#playerTitle').textContent = "Couldn't load this title";
+  document.getElementById('playerPlaceholder').innerHTML = `
+    <div class="glyph">⚠️</div>
+    <h3>Couldn't load this title</h3>
+    <p>The anime API didn't respond — could be a rate limit or a connection hiccup.</p>
+    <button class="btn btn-amber" onclick="location.reload()">↻ Try again</button>`;
+}
+
+// Handle episode switching
+document.addEventListener('click', (e) => {
+  const epLink = e.target.closest('.ep-row');
+  if (epLink) {
+    e.preventDefault();
+    const href = epLink.getAttribute('href');
+    if (href) {
+      document.getElementById('playerPlaceholder').innerHTML = `
+        <div class="glyph">🔄</div>
+        <h3>Loading episode...</h3>
+        <p>Fetching video source...</p>
+      `;
+      window.location.href = href;
+    }
+  }
+});
 
 init();
