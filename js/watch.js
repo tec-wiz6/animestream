@@ -1,5 +1,5 @@
 // ============================================================
-// REWIND — watch.js (UPDATED WITH AWAIT)
+// REWIND — watch.js (FIXED FOR MAL IDs)
 // ============================================================
 const $ = (sel) => document.querySelector(sel);
 
@@ -7,18 +7,64 @@ const id = qs('id');
 const epParam = parseInt(qs('ep') || '1', 10);
 
 // ============================================================
-// VIDEO SOURCE WITH ON-DEMAND SCRAPING
+// VIDEO SOURCE WITH ON-DEMAND SCRAPING (FIXED)
 // ============================================================
 async function VIDEO_SOURCE_FOR(anime, episode) {
   try {
-    const animeId = anime.malId || anime.id;
+    // CRITICAL FIX: Use the anime.id from the URL, not malId
+    // URL format: watch.html?id=mal-1735&ep=1
+    // But Supabase uses: naruto, one piece, etc.
     
+    // Get the anime ID from the URL parameter
+    const urlId = qs('id');
+    
+    // If it's a MAL ID (starts with 'mal-'), we need to get the anime title
+    let animeId;
+    
+    if (urlId && urlId.startsWith('mal-')) {
+      // Try to use the anime's romaji or english title
+      // Convert title to slug format (lowercase, replace spaces with dashes)
+      const title = anime.title || anime.romaji || '';
+      animeId = title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      
+      console.log(`🔄 Converted MAL ID ${urlId} to slug: ${animeId}`);
+    } else {
+      // Use the ID directly (for non-MAL links)
+      animeId = urlId || anime.id;
+    }
+    
+    // If we still don't have a good ID, try to use the anime name
+    if (!animeId || animeId === 'mal-undefined') {
+      const title = anime.title || anime.romaji || '';
+      animeId = title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      console.log(`🔄 Using title as slug: ${animeId}`);
+    }
+    
+    console.log(`🎯 Final anime ID for API: ${animeId}`);
+    
+    // Call the API with the correct ID format
     const response = await fetch(
       `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(animeId)}/play/${episode}`
     );
     
     if (!response.ok) {
       console.error('Failed to fetch video:', response.status);
+      // Try fallback - use the MAL ID directly
+      if (urlId && urlId.startsWith('mal-')) {
+        const malNum = urlId.replace('mal-', '');
+        console.log(`🔄 Trying fallback with MAL ID: ${malNum}`);
+        const fallbackResponse = await fetch(
+          `https://anime-stream-backend.vercel.app/api/anime/${malNum}/play/${episode}`
+        );
+        if (fallbackResponse.ok) {
+          const data = await fallbackResponse.json();
+          return data.url || null;
+        }
+      }
       return null;
     }
     
@@ -38,7 +84,7 @@ async function VIDEO_SOURCE_FOR(anime, episode) {
 }
 
 // ============================================================
-// RENDER PLAYER (FIXED - AWAITS VIDEO URL)
+// RENDER PLAYER (FIXED)
 // ============================================================
 async function renderPlayer(anime, episode) {
   const screen = $('#playerScreen');
@@ -65,6 +111,7 @@ async function renderPlayer(anime, episode) {
         <div class="glyph">⚠️</div>
         <h3>Could not load video</h3>
         <p>Try refreshing or selecting another episode.</p>
+        <button class="btn btn-amber" onclick="location.reload()">↻ Retry</button>
       `;
     }, 30000);
     return;
@@ -82,6 +129,13 @@ async function renderPlayer(anime, episode) {
     });
     video.addEventListener('playing', () => {
       document.getElementById('playerPlaceholder').style.display = 'none';
+    });
+    video.addEventListener('error', () => {
+      document.getElementById('playerPlaceholder').innerHTML = `
+        <div class="glyph">⚠️</div>
+        <h3>Video Error</h3>
+        <p>Could not play this video. Try another episode.</p>
+      `;
     });
   }
 }
@@ -125,8 +179,9 @@ async function init() {
 
     // Get actual episode count from API
     try {
+      const animeId = getAnimeSlug(anime);
       const epResponse = await fetch(
-        `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(anime.id)}/episodes`
+        `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(animeId)}/episodes`
       );
       if (epResponse.ok) {
         const epData = await epResponse.json();
@@ -140,7 +195,7 @@ async function init() {
       renderEpisodeSidebar(anime, epCount, episode);
     }
 
-    // FIXED: Await renderPlayer
+    // Render player
     await renderPlayer(anime, episode);
     setProgress(anime, episode);
 
@@ -159,6 +214,32 @@ async function init() {
     console.error('REWIND watch page load failed:', err);
     showLoadError();
   }
+}
+
+// ============================================================
+// HELPER: Convert anime to slug for API
+// ============================================================
+function getAnimeSlug(anime) {
+  // Try to use the ID from URL first
+  const urlId = qs('id');
+  if (urlId && !urlId.startsWith('mal-')) {
+    return urlId;
+  }
+  
+  // If it's a MAL ID, convert title to slug
+  if (urlId && urlId.startsWith('mal-')) {
+    const title = anime.title || anime.romaji || '';
+    const slug = title.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    return slug || 'unknown';
+  }
+  
+  // Fallback: use title
+  const title = anime.title || anime.romaji || '';
+  return title.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 function showLoadError() {
