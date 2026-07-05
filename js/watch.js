@@ -1,42 +1,44 @@
 // ============================================================
-// REWIND — watch.js (FIXED FOR MEGAPLAY IFRAMES)
+// REWIND — watch.js (FIXED)
 // ============================================================
 const $ = (sel) => document.querySelector(sel);
 
 const id = qs('id');
 const epParam = parseInt(qs('ep') || '1', 10);
 
-// ============================================================
-// VIDEO SOURCE WITH ON-DEMAND SCRAPING
-// ============================================================
 async function VIDEO_SOURCE_FOR(anime, episode) {
   try {
-    const urlId = qs('id');
-    let animeId;
-
-    if (urlId && urlId.startsWith('mal-')) {
-      const title = anime.title || anime.romaji || '';
-      animeId = title.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      console.log(`🔄 Converted MAL ID ${urlId} to slug: ${animeId}`);
-    } else {
-      animeId = urlId || anime.id;
-    }
-
-    if (!animeId || animeId === 'mal-undefined') {
-      const title = anime.title || anime.romaji || '';
-      animeId = title.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      console.log(`🔄 Using title as slug: ${animeId}`);
-    }
-
-    console.log(`🎯 Final anime ID for API: ${animeId}`);
+    // Get the anime slug from title
+    const title = anime.title || anime.romaji || '';
+    const slug = title.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    console.log(`🎯 Using slug: ${slug}`);
 
     const response = await fetch(
-      `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(animeId)}/play/${episode}`
+      `https://anime-stream-backend.vercel.app/api/anime/${encodeURIComponent(slug)}/episode/${episode}`
     );
+
+    if (response.status === 404) {
+      const data = await response.json();
+      console.log('❌ Not available:', data.message);
+      
+      const placeholder = document.getElementById('playerPlaceholder');
+      if (placeholder) {
+        placeholder.innerHTML = `
+          <div class="glyph">😢</div>
+          <h3>Episode Not Available</h3>
+          <p>${data.message || 'This episode hasn\'t been scraped yet.'}</p>
+          <p style="font-size:12px;color:var(--paper-dim);">
+            Make sure it\'s in your anime list and the scraper has run.
+          </p>
+          <button class="btn btn-amber" onclick="window.history.back()">← Go Back</button>
+        `;
+      }
+      
+      return null;
+    }
 
     if (!response.ok) {
       console.error('Failed to fetch video:', response.status);
@@ -45,11 +47,7 @@ async function VIDEO_SOURCE_FOR(anime, episode) {
 
     const data = await response.json();
     console.log('📺 Video source:', data);
-
-    if (data.backgroundScraping) {
-      console.log('🔄 Background scraping full season...');
-    }
-
+    
     return data.url || null;
 
   } catch (error) {
@@ -58,24 +56,18 @@ async function VIDEO_SOURCE_FOR(anime, episode) {
   }
 }
 
-// ============================================================
-// RENDER PLAYER - FIXED FOR IFRAME EMBEDS
-// ============================================================
 async function renderPlayer(anime, episode) {
   const screen = $('#playerScreen');
   const placeholder = document.getElementById('playerPlaceholder');
 
-  if (!screen) {
-    console.error('❌ playerScreen element not found!');
-    return;
-  }
+  if (!screen) return;
 
-  // Show loading state
+  // Loading state
   if (placeholder) {
     placeholder.innerHTML = `
       <div class="glyph">🔄</div>
       <h3>Loading episode...</h3>
-      <p>Fetching video source (this may take a few seconds for new anime)</p>
+      <p>Fetching video...</p>
     `;
   }
 
@@ -87,11 +79,9 @@ async function renderPlayer(anime, episode) {
     src = null;
   }
 
-  // Clear the screen
   screen.innerHTML = '';
 
   if (!src) {
-    // Show error state
     if (placeholder) {
       placeholder.innerHTML = `
         <div class="glyph">⚠️</div>
@@ -103,26 +93,19 @@ async function renderPlayer(anime, episode) {
     return;
   }
 
-  // ============================================================
-  // CRITICAL FIX: Megaplay URLs need an IFRAME, not a video tag!
-  // ============================================================
-  console.log('🎬 Rendering video source:', src);
-
-  // Check if it's a megaplay URL (or any embed URL)
+  // Check if it's an embed URL (megaplay)
   const isEmbed = src.includes('megaplay') || 
                   src.includes('mp4upload') || 
                   src.includes('dood') || 
-                  src.includes('streamtape') ||
                   src.includes('embed') ||
                   src.includes('/v/');
 
   if (isEmbed) {
-    // Use an IFRAME for embed URLs
     console.log('📺 Rendering as iframe embed');
     screen.innerHTML = `
       <iframe 
         src="${src}" 
-        style="width:100%;height:100%;border:none;"
+        style="width:100%;height:100%;border:none;background:#000;"
         allowfullscreen
         allow="autoplay; encrypted-media; fullscreen"
         scrolling="no"
@@ -130,31 +113,12 @@ async function renderPlayer(anime, episode) {
       ></iframe>
     `;
     
-    // Hide placeholder when iframe loads
-    const iframe = screen.querySelector('iframe');
-    if (iframe) {
-      iframe.addEventListener('load', () => {
-        if (placeholder) {
-          placeholder.style.display = 'none';
-        }
-      });
-      // If iframe doesn't load within 10 seconds, show error
-      setTimeout(() => {
-        if (placeholder && placeholder.style.display !== 'none') {
-          placeholder.style.display = 'none';
-        }
-      }, 10000);
-    }
-    
-    // Hide placeholder immediately since iframe will show content
-    if (placeholder) {
-      setTimeout(() => {
+    setTimeout(() => {
+      if (placeholder) {
         placeholder.style.display = 'none';
-      }, 1000);
-    }
-    
+      }
+    }, 2000);
   } else {
-    // Use video tag for direct video URLs
     console.log('📺 Rendering as video tag');
     screen.innerHTML = `
       <video controls playsinline autoplay style="width:100%;height:100%;">
